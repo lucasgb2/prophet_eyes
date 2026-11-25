@@ -1,24 +1,18 @@
 import type { Candle, Timeframe } from './types';
+import { INITIAL_RANGE } from './ranges';
 
-// Timeframe -> parâmetros da brapi (intervalos intradiários têm janela máxima menor)
-const MAP: Record<Timeframe, { interval: string; range: string }> = {
-  '5m': { interval: '5m', range: '5d' },
-  '15m': { interval: '15m', range: '5d' },
-  '30m': { interval: '30m', range: '1mo' },
-  '60m': { interval: '60m', range: '1mo' },
-  '1d': { interval: '1d', range: '1y' },
-  '1wk': { interval: '1wk', range: '5y' },
-  '1mo': { interval: '1mo', range: 'max' },
-};
+function headers() {
+  const h: Record<string, string> = {};
+  if (process.env.BRAPI_TOKEN) h.Authorization = `Bearer ${process.env.BRAPI_TOKEN}`;
+  return h;
+}
 
-export async function fetchCandles(symbol: string, tf: Timeframe): Promise<Candle[]> {
-  const { interval, range } = MAP[tf];
+/** Busca candles na brapi. `range` permite pedir só o trecho recente (ver lib/candles.ts). */
+export async function fetchCandles(symbol: string, tf: Timeframe, range?: string): Promise<Candle[]> {
   const url = new URL(`https://brapi.dev/api/quote/${encodeURIComponent(symbol.toUpperCase())}`);
-  url.searchParams.set('interval', interval);
-  url.searchParams.set('range', range);
-  const headers: Record<string, string> = {};
-  if (process.env.BRAPI_TOKEN) headers.Authorization = `Bearer ${process.env.BRAPI_TOKEN}`;
-  const res = await fetch(url, { headers });
+  url.searchParams.set('interval', INITIAL_RANGE[tf].interval);
+  url.searchParams.set('range', range ?? INITIAL_RANGE[tf].range);
+  const res = await fetch(url, { headers: headers() });
   if (!res.ok) throw new Error(`brapi respondeu ${res.status}`);
   const json = await res.json();
   const rows: any[] = json?.results?.[0]?.historicalDataPrice ?? [];
@@ -26,4 +20,16 @@ export async function fetchCandles(symbol: string, tf: Timeframe): Promise<Candl
     .filter((r) => r.open != null && r.close != null)
     .map((r) => ({ time: r.date, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume ?? 0 }))
     .sort((a, b) => a.time - b.time);
+}
+
+export async function searchAssets(q: string): Promise<{ symbol: string; name: string }[]> {
+  const url = new URL('https://brapi.dev/api/quote/list');
+  url.searchParams.set('search', q);
+  url.searchParams.set('limit', '10');
+  const res = await fetch(url, { headers: headers() });
+  if (!res.ok) throw new Error(`brapi respondeu ${res.status}`);
+  const json = await res.json();
+  return (json?.stocks ?? [])
+    .filter((s: any) => typeof s.stock === 'string' && /^[A-Z0-9]{4,8}$/.test(s.stock))
+    .map((s: any) => ({ symbol: s.stock, name: String(s.name ?? s.stock) }));
 }

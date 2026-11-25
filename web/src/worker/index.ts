@@ -1,5 +1,5 @@
 import { pool } from '../lib/db';
-import { fetchCandles } from '../lib/brapi';
+import { getCandles } from '../lib/candles';
 import { rsi } from '../lib/indicators';
 import type { Timeframe } from '../lib/types';
 
@@ -22,7 +22,7 @@ async function tick() {
       AND (a.last_fired_at IS NULL OR a.last_fired_at < now() - $1 * interval '1 millisecond')`, [COOLDOWN_MS]);
   for (const a of rows) {
     try {
-      const candles = await fetchCandles(a.symbol, a.timeframe as Timeframe);
+      const { candles } = await getCandles(a.symbol, a.timeframe as Timeframe);
       const last = candles.at(-1);
       if (!last) continue;
       const r = rsi(candles.map((c) => c.close)).at(-1);
