@@ -1,0 +1,13 @@
+# Override para a VPS: usa as imagens publicadas pelo CI em vez de buildar.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+services:
+  web:
+    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
+    pull_policy: always
+  worker:
+    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
+    pull_policy: always
+  quotes:
+    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-quotes:${IMAGE_TAG:-latest}
+    pull_policy: always

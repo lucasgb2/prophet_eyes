@@ -20,4 +20,16 @@ cd web && npm install && npm test && npx tsc --noEmit
 ## CI e imagens Docker
 O workflow `.github/workflows/ci.yml` roda typecheck, testes e build do Next, e builda a imagem Docker em PRs e na `main`. Na `main` ele publica `ghcr.io/<dono>/prophet-web` (tags `latest` e `sha-…`). `web` e `worker` usam a mesma imagem.
 
-Na VPS, em vez de buildar: `docker compose pull web worker quotes && docker compose up -d`. O CI publica também `prophet-quotes` (serviço do preço real). Se o pacote for privado, faça antes `docker login ghcr.io` com um token com `read:packages`.
+Na VPS, em vez de buildar, use o override com as imagens publicadas:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+```
+Se o pacote for privado, faça antes `docker login ghcr.io` com um token com `read:packages`.
+
+## Atualizar uma instalação local
+```bash
+git pull origin main          # sem isso o código local continua o antigo
+docker compose up -d --build  # reconstrói web, worker e quotes
+```
+No navegador, faça um recarregamento forçado (Ctrl+Shift+R). Para conferir o que está rodando: `docker compose images` (data de criação) e `git log -1`.

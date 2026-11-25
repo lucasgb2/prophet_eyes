@@ -15,8 +15,8 @@ services:
       retries: 10
 
   web:
-    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
     build: ./web
+    pull_policy: build   # `docker compose up -d` sempre reconstrói a partir do código local
     restart: unless-stopped
     depends_on:
       db: { condition: service_healthy }
@@ -29,8 +29,8 @@ services:
       QUOTES_URL: http://quotes:8000
 
   worker:
-    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
     build: ./web
+    pull_policy: build   # `docker compose up -d` sempre reconstrói a partir do código local
     command: ["npx", "tsx", "src/worker/index.ts"]
     restart: unless-stopped
     depends_on:
@@ -39,8 +39,8 @@ services:
 
   # Preço real via yfinance (Yahoo). Sem porta publicada: só o web acessa, pela rede do Compose.
   quotes:
-    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-quotes:${IMAGE_TAG:-latest}
     build: ./quotes
+    pull_policy: build   # `docker compose up -d` sempre reconstrói a partir do código local
     restart: unless-stopped
 
   caddy:
