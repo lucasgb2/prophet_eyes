@@ -1,5 +1,6 @@
 import { pool } from './db';
 import { ensureSchema } from './schema';
+import { INITIAL_RANGE } from './ranges';
 import { fetchCandles } from './brapi';
 import { pickRange } from './ranges';
 import type { Candle, Timeframe } from './types';
@@ -41,7 +42,13 @@ export async function getCandles(symbolRaw: string, tf: Timeframe): Promise<{ ca
 
   try {
     const range = pickRange(tf, cached.length ? cached[cached.length - 1].time : null);
-    const fresh = await fetchCandles(symbol, tf, range);
+    let fresh: Candle[];
+    try { fresh = await fetchCandles(symbol, tf, range); }
+    catch (e: any) {
+      // 400 num trecho incremental: tenta a janela inicial do timeframe antes de desistir
+      if (e?.status === 400 && range !== INITIAL_RANGE[tf].range) fresh = await fetchCandles(symbol, tf);
+      else throw e;
+    }
     await upsert(symbol, tf, fresh);
     await pool.query(
       `INSERT INTO candle_sync(symbol,timeframe) VALUES ($1,$2)
