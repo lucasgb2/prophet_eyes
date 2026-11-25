@@ -10,3 +10,22 @@ button { cursor:pointer; } button.on { background:var(--acc); border-color:var(-
 .muted { color:var(--mut); } .grow { flex:1; }
 .login { max-width:340px; margin:15vh auto; display:grid; gap:10px; }
 table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:4px 8px; border-bottom:1px solid var(--line); }
+
+/* Layout: área principal | painel da ferramenta | barra lateral direita */
+.app { display:flex; height:100vh; overflow:hidden; }
+.main { flex:1; min-width:0; overflow:auto; }
+.rail { width:48px; flex:none; border-left:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:10px; }
+.rail button { width:36px; height:36px; padding:0; display:grid; place-items:center; background:transparent; border-color:transparent; color:var(--mut); }
+.rail button:hover { color:var(--fg); } .rail button.on { background:var(--acc); color:#fff; }
+.toolpanel { width:340px; flex:none; border-left:1px solid var(--line); background:var(--bg); display:flex; flex-direction:column; }
+.toolpanel header { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); }
+.toolbody { padding:12px; overflow:auto; }
+.stack { display:grid; gap:18px; } .stack h4 { margin:0 0 6px; } .row { display:flex; gap:6px; margin-bottom:6px; }
+.workspace { display:flex; align-items:flex-start; }
+.chartcol { flex:1; min-width:0; }
+.suggest { width:290px; flex:none; margin-left:0; }
+.sug { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:8px 0; border-top:1px solid var(--line); }
+.combo { position:relative; }
+.combo-list { position:absolute; z-index:20; top:100%; left:0; min-width:300px; margin:2px 0 0; padding:4px; list-style:none; background:var(--panel); border:1px solid var(--line); border-radius:6px; max-height:320px; overflow:auto; }
+.combo-list li { padding:6px 8px; border-radius:4px; cursor:pointer; } .combo-list li.hi, .combo-list li:hover { background:#222a34; }
+@media (max-width: 900px) { .workspace { flex-direction:column; align-items:stretch; } .suggest { width:auto; margin:0 16px 12px; } .toolpanel { width:280px; } }

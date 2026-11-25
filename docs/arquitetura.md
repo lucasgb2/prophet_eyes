@@ -9,12 +9,13 @@ Aplicação web própria para a B3: escolher um ativo, ver candles em vários ti
 Navegador ──HTTPS──> Caddy ──> web (Next.js: UI + API)  ──> Postgres/TimescaleDB
                                    │                              ▲
                                    └─> brapi.dev (candles)        │
+                      quotes (Python + yfinance) <── web (preço real)
                       worker (Node, mesma imagem) ────────────────┘
                          ├─> brapi.dev (candles) / BCB SGS (macro, fase 2)
                          └─> Telegram Bot API
 ```
 
-Um repositório, três serviços de aplicação no Docker Compose (`web`, `worker`, `db`) mais `caddy` como proxy com HTTPS automático. `web` e `worker` usam a mesma imagem e o mesmo código de indicadores (`web/src/lib`), evitando duplicar cálculo.
+Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `quotes`, `db`) mais `caddy` como proxy com HTTPS automático. `web` e `worker` usam a mesma imagem e o mesmo código de indicadores (`web/src/lib`), evitando duplicar cálculo.
 
 ## Decisões
 - **Next.js + Lightweight Charts**: UI e API no mesmo projeto; gráfico de candles leve, com painéis para RSI/MACD.
@@ -43,3 +44,10 @@ Um repositório, três serviços de aplicação no Docker Compose (`web`, `worke
 - Indicadores recalculados no navegador a cada troca; candles não são cacheados.
 - Sem rate limit no login nem recuperação de senha.
 - O ticker é validado só por formato; erro da brapi aparece como mensagem no gráfico.
+
+## Atualizações (rodada 2)
+- **Cache de candles**: `lib/candles.ts` guarda candles no Postgres (`candles`, hypertable quando há TimescaleDB) e a data da última sincronização (`candle_sync`). Cache fresco (60 s intradiário, 5 min demais) não chama a brapi; cache velho busca só o menor `range` que cobre desde o último candle guardado (`lib/ranges.ts`). Se a brapi falhar, serve o cache. As tabelas novas são criadas por `lib/schema.ts` na primeira chamada, então bancos já existentes não precisam ser recriados.
+- **Preço real**: serviço `quotes` (Python + yfinance, sufixo `.SA`) sem porta publicada; o web consulta via `/api/quote` a cada 15 s quando o botão "Preço real" está ligado (preferência no navegador). O preço só altera o último candle na tela, não o cache nem os indicadores. O Yahoo não é fonte oficial da B3 e pode ter atraso e limites de uso.
+- **Autocomplete**: `/api/assets` busca por código ou nome da empresa na tabela `assets` (semeada com ~40 papéis e ampliada com a busca `quote/list` da brapi).
+- **Aba = papel**: o nome da aba é sempre o código do ativo selecionado.
+- **Barra lateral de ferramentas**: `components/tools/registry.tsx` é o registro; cada item (id, título, ícone, painel) vira um ícone na barra direita que abre um painel deslizante. Primeira ferramenta: notificações do Telegram (chat_id e alertas). Para adicionar outra, crie o painel e inclua um item no registro.

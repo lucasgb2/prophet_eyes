@@ -1,14 +1,17 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Chart from './Chart';
+import SymbolInput from './SymbolInput';
+import { TOOLS } from './tools/registry';
 import { INDICATORS, INDICATOR_IDS } from '@/lib/indicators';
 import { TIMEFRAMES, type Candle } from '@/lib/types';
 import type { Suggestion } from '@/lib/suggest';
 
 type Profile = { id: number; name: string; symbol: string; timeframe: string; indicators: string[] };
-type Alert = { id: number; symbol: string; timeframe: string; kind: string; value: number };
+type Quote = { price: number; changePct: number | null };
 const j = (url: string, method = 'GET', body?: unknown) =>
   fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function Dashboard() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -16,14 +19,17 @@ export default function Dashboard() {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [sugg, setSugg] = useState<Suggestion[]>([]);
   const [err, setErr] = useState('');
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [chatId, setChatId] = useState('');
-  const [newAlert, setNewAlert] = useState({ kind: 'price_above', value: '' });
+  const [live, setLive] = useState(false);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteErr, setQuoteErr] = useState('');
+  const [toolId, setToolId] = useState<string | null>(null);
   const profile = profiles.find((p) => p.id === activeId);
+  const tool = TOOLS.find((t) => t.id === toolId);
 
-  useEffect(() => { j('/api/profiles').then((r) => r.json()).then((ps: Profile[]) => { setProfiles(ps); setActiveId(ps[0]?.id ?? null); }); }, []);
-  const loadAlerts = useCallback(() => j('/api/alerts').then((r) => r.json()).then((d) => { setAlerts(d.alerts); setChatId(d.telegramChatId ?? ''); }), []);
-  useEffect(() => { loadAlerts(); }, [loadAlerts]);
+  useEffect(() => {
+    j('/api/profiles').then((r) => r.json()).then((ps: Profile[]) => { setProfiles(ps); setActiveId(ps[0]?.id ?? null); });
+    try { setLive(localStorage.getItem('prophet_live') === '1'); } catch {}
+  }, []);
 
   const key = profile && `${profile.symbol}|${profile.timeframe}`;
   useEffect(() => {
@@ -35,74 +41,88 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
+  // Preço real (yfinance): consulta a cada 15 s enquanto estiver ligado
+  const symbol = profile?.symbol;
+  useEffect(() => {
+    setQuote(null); setQuoteErr('');
+    if (!live || !symbol) return;
+    let stop = false;
+    const tick = async () => {
+      const r = await j(`/api/quote?symbol=${symbol}`);
+      const body = await r.json();
+      if (stop) return;
+      if (r.ok) { setQuote(body); setQuoteErr(''); } else setQuoteErr(body.error ?? 'erro');
+    };
+    tick();
+    const id = setInterval(tick, 15000);
+    return () => { stop = true; clearInterval(id); };
+  }, [live, symbol]);
+
+  const toggleLive = () => { const v = !live; setLive(v); try { localStorage.setItem('prophet_live', v ? '1' : '0'); } catch {} };
+
   const update = (patch: Partial<Profile>) => {
     if (!profile) return;
-    const next = { ...profile, ...patch };
+    const next = { ...profile, ...patch, ...(patch.symbol ? { name: patch.symbol } : {}) }; // a aba leva o nome do papel
     setProfiles((ps) => ps.map((p) => (p.id === next.id ? next : p)));
     j('/api/profiles', 'PUT', next);
   };
   const toggle = (id: string) => update({ indicators: profile!.indicators.includes(id) ? profile!.indicators.filter((x) => x !== id) : [...profile!.indicators, id] });
 
   return (
-    <>
-      <div className="bar">
-        <b>Prophet</b><span className="grow" />
-        <button onClick={async () => { await j('/api/auth/logout', 'POST'); location.href = '/login'; }}>Sair</button>
+    <div className="app">
+      <div className="main">
+        <div className="bar">
+          <b>Prophet</b><span className="grow" />
+          <button onClick={async () => { await j('/api/auth/logout', 'POST'); location.href = '/login'; }}>Sair</button>
+        </div>
+        <div className="tabs">
+          {profiles.map((p) => <button key={p.id} className={p.id === activeId ? 'on' : ''} onClick={() => setActiveId(p.id)}>{p.symbol}</button>)}
+          <button aria-label="Nova aba" onClick={async () => { const p = await (await j('/api/profiles', 'POST', {})).json(); setProfiles([...profiles, p]); setActiveId(p.id); }}>+</button>
+        </div>
+        {profile && (
+          <>
+            <div className="bar">
+              <SymbolInput symbol={profile.symbol} onSelect={(s) => update({ symbol: s })} />
+              {TIMEFRAMES.map((t) => <button key={t} className={t === profile.timeframe ? 'on' : ''} onClick={() => update({ timeframe: t })}>{t}</button>)}
+              <span className="grow" />
+              <button className={live ? 'on' : ''} onClick={toggleLive} title="Cotação em tempo quase real via yfinance">Preço real</button>
+              {live && quote && <span><b>{brl(quote.price)}</b>{quote.changePct != null && <span style={{ color: quote.changePct >= 0 ? '#26a69a' : '#ef5350' }}> {quote.changePct >= 0 ? '+' : ''}{quote.changePct.toFixed(2)}%</span>}</span>}
+              {live && quoteErr && <span className="muted" title={quoteErr}>cotação indisponível</span>}
+              <button onClick={async () => { await j(`/api/profiles?id=${profile.id}`, 'DELETE'); const rest = profiles.filter((p) => p.id !== profile.id); setProfiles(rest); setActiveId(rest[0]?.id ?? null); }}>Excluir aba</button>
+            </div>
+            <div className="bar">
+              <span className="muted">Indicadores:</span>
+              {INDICATOR_IDS.map((id) => <button key={id} className={profile.indicators.includes(id) ? 'on' : ''} onClick={() => toggle(id)}>{INDICATORS[id].label}</button>)}
+            </div>
+            <div className="workspace">
+              <div className="panel chartcol">
+                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart candles={candles} indicators={profile.indicators} livePrice={live ? quote?.price : null} />}
+              </div>
+              <aside className="panel suggest">
+                <b>Indicadores sugeridos</b>
+                <p className="muted">{profile.symbol} · {profile.timeframe}. Ranking histórico (retorno 5 candles após cada sinal). Descreve o passado; não é recomendação.</p>
+                {sugg.map((s) => (
+                  <div className="sug" key={s.id}>
+                    <div><b>{s.label}</b><div className="muted">{s.signals} sinais · acerto {(s.hitRate * 100).toFixed(0)}% · ret. médio {s.avgReturnPct.toFixed(2)}%</div></div>
+                    <button disabled={profile.indicators.includes(s.id)} onClick={() => toggle(s.id)}>{profile.indicators.includes(s.id) ? 'Em uso' : 'Aplicar'}</button>
+                  </div>))}
+                {!sugg.length && <span className="muted">Sem dados suficientes de sinais.</span>}
+              </aside>
+            </div>
+          </>
+        )}
       </div>
-      <div className="tabs">
-        {profiles.map((p) => <button key={p.id} className={p.id === activeId ? 'on' : ''} onClick={() => setActiveId(p.id)}>{p.name}</button>)}
-        <button onClick={async () => { const p = await (await j('/api/profiles', 'POST', { name: `Aba ${profiles.length + 1}` })).json(); setProfiles([...profiles, p]); setActiveId(p.id); }}>+</button>
-      </div>
-      {profile && (
-        <>
-          <div className="bar">
-            <input value={profile.name} onChange={(e) => update({ name: e.target.value })} style={{ width: 120 }} aria-label="Nome da aba" />
-            <input defaultValue={profile.symbol} key={profile.id} style={{ width: 90 }} aria-label="Ativo" placeholder="PETR4"
-              onKeyDown={(e) => e.key === 'Enter' && update({ symbol: (e.target as HTMLInputElement).value.toUpperCase() })}
-              onBlur={(e) => e.target.value && update({ symbol: e.target.value.toUpperCase() })} />
-            {TIMEFRAMES.map((t) => <button key={t} className={t === profile.timeframe ? 'on' : ''} onClick={() => update({ timeframe: t })}>{t}</button>)}
-            <span className="grow" />
-            <button onClick={async () => { await j(`/api/profiles?id=${profile.id}`, 'DELETE'); const rest = profiles.filter((p) => p.id !== profile.id); setProfiles(rest); setActiveId(rest[0]?.id ?? null); }}>Excluir aba</button>
-          </div>
-          <div className="bar">
-            <span className="muted">Indicadores:</span>
-            {INDICATOR_IDS.map((id) => <button key={id} className={profile.indicators.includes(id) ? 'on' : ''} onClick={() => toggle(id)}>{INDICATORS[id].label}</button>)}
-          </div>
-          <div className="panel">
-            {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart candles={candles} indicators={profile.indicators} />}
-          </div>
-          <div className="panel">
-            <b>Indicadores sugeridos para {profile.symbol} ({profile.timeframe})</b>
-            <p className="muted">Ranking histórico: para cada indicador, mede o retorno 5 candles após cada sinal neste ativo/timeframe. Descreve o passado, não prevê o futuro nem é recomendação.</p>
-            <table><thead><tr><th>Indicador</th><th>Sinais</th><th>Acerto</th><th>Retorno médio</th><th /></tr></thead>
-              <tbody>{sugg.map((s) => (
-                <tr key={s.id}><td>{s.label}</td><td>{s.signals}</td><td>{(s.hitRate * 100).toFixed(0)}%</td><td>{s.avgReturnPct.toFixed(2)}%</td>
-                  <td><button disabled={profile.indicators.includes(s.id)} onClick={() => toggle(s.id)}>Aplicar</button></td></tr>))}</tbody></table>
-            {!sugg.length && <span className="muted">Sem dados suficientes de sinais.</span>}
-          </div>
-        </>
+      {tool && profile && (
+        <section className="toolpanel">
+          <header><b>{tool.title}</b><button aria-label="Fechar" onClick={() => setToolId(null)}>×</button></header>
+          <div className="toolbody"><tool.Panel ctx={{ symbol: profile.symbol, timeframe: profile.timeframe }} /></div>
+        </section>
       )}
-      <div className="panel">
-        <b>Alertas no Telegram</b>
-        <div className="bar" style={{ padding: '8px 0' }}>
-          <input placeholder="seu chat_id do Telegram" value={chatId} onChange={(e) => setChatId(e.target.value)} />
-          <button onClick={() => j('/api/alerts', 'PUT', { telegramChatId: chatId })}>Salvar</button>
-          <span className="muted">Fale com o bot e use @userinfobot para descobrir seu chat_id.</span>
-        </div>
-        <div className="bar" style={{ padding: '8px 0' }}>
-          <select value={newAlert.kind} onChange={(e) => setNewAlert({ ...newAlert, kind: e.target.value })}>
-            <option value="price_above">preço acima de</option><option value="price_below">preço abaixo de</option>
-            <option value="rsi_above">RSI acima de</option><option value="rsi_below">RSI abaixo de</option>
-          </select>
-          <input type="number" step="any" placeholder="valor" value={newAlert.value} onChange={(e) => setNewAlert({ ...newAlert, value: e.target.value })} style={{ width: 90 }} />
-          <button disabled={!profile || !newAlert.value} onClick={async () => { await j('/api/alerts', 'POST', { ...newAlert, symbol: profile!.symbol, timeframe: profile!.timeframe }); setNewAlert({ ...newAlert, value: '' }); loadAlerts(); }}>
-            Criar para {profile?.symbol}
-          </button>
-        </div>
-        <table><tbody>{alerts.map((a) => (
-          <tr key={a.id}><td>{a.symbol} {a.timeframe}</td><td>{a.kind.replace('_', ' ')} {a.value}</td>
-            <td><button onClick={async () => { await j(`/api/alerts?id=${a.id}`, 'DELETE'); loadAlerts(); }}>remover</button></td></tr>))}</tbody></table>
-      </div>
-    </>
+      <nav className="rail" aria-label="Ferramentas">
+        {TOOLS.map((t) => (
+          <button key={t.id} title={t.title} aria-label={t.title} className={t.id === toolId ? 'on' : ''} onClick={() => setToolId(t.id === toolId ? null : t.id)}>{t.icon}</button>
+        ))}
+      </nav>
+    </div>
   );
 }

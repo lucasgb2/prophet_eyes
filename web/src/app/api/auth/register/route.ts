@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   const hash = await bcrypt.hash(password, 12);
   try {
     const { rows } = await pool.query('INSERT INTO users(email, password_hash) VALUES ($1,$2) RETURNING id', [email.toLowerCase(), hash]);
-    await pool.query("INSERT INTO profiles(user_id, name, indicators) VALUES ($1,'Principal','[\"sma20\",\"rsi\"]')", [rows[0].id]);
+    await pool.query("INSERT INTO profiles(user_id, name, symbol, indicators) VALUES ($1,'PETR4','PETR4','[\"sma20\",\"rsi\"]')", [rows[0].id]);
     await createSession(rows[0].id);
     return NextResponse.json({ ok: true });
   } catch {

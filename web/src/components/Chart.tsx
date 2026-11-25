@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useRef } from 'react';
-import { createChart, type IChartApi, type UTCTimestamp } from 'lightweight-charts';
+import { createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts';
 import { sma, ema, rsi, macd, bollinger } from '@/lib/indicators';
 import type { Candle } from '@/lib/types';
 
 const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i] == null ? [] : [{ time: time as UTCTimestamp, value: s[i]! }]));
 
-export default function Chart({ candles, indicators }: { candles: Candle[]; indicators: string[] }) {
+export default function Chart({ candles, indicators, livePrice }: { candles: Candle[]; indicators: string[]; livePrice?: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   useEffect(() => {
     if (!ref.current || !candles.length) return;
     const el = ref.current;
@@ -19,6 +20,7 @@ export default function Chart({ candles, indicators }: { candles: Candle[]; indi
     });
     const t = candles.map((c) => c.time), p = candles.map((c) => c.close);
     const main = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350' });
+    mainRef.current = main;
     main.setData(candles.map((c) => ({ ...c, time: c.time as UTCTimestamp })));
     const overlay = (s: (number | null)[], color: string) => chart.addLineSeries({ color, lineWidth: 1, priceLineVisible: false }).setData(line(t, s));
     if (indicators.includes('sma20')) overlay(sma(p, 20), '#f0b429');
@@ -47,5 +49,12 @@ export default function Chart({ candles, indicators }: { candles: Candle[]; indi
     window.addEventListener('resize', onResize);
     return () => { window.removeEventListener('resize', onResize); chart.remove(); };
   }, [candles, indicators]);
+  // Preço real: atualiza só o último candle (visual), sem tocar nos dados guardados nem nos indicadores.
+  useEffect(() => {
+    const last = candles.at(-1);
+    if (!mainRef.current || !last) return;
+    if (livePrice == null) { mainRef.current.update({ ...last, time: last.time as UTCTimestamp }); return; }
+    mainRef.current.update({ time: last.time as UTCTimestamp, open: last.open, high: Math.max(last.high, livePrice), low: Math.min(last.low, livePrice), close: livePrice });
+  }, [livePrice, candles, indicators]);
   return <div ref={ref} />;
 }

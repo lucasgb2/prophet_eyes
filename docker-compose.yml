@@ -26,6 +26,7 @@ services:
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
       BRAPI_TOKEN: ${BRAPI_TOKEN:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      QUOTES_URL: http://quotes:8000
 
   worker:
     image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
@@ -35,6 +36,12 @@ services:
     depends_on:
       db: { condition: service_healthy }
     environment: *app-env
+
+  # Preço real via yfinance (Yahoo). Sem porta publicada: só o web acessa, pela rede do Compose.
+  quotes:
+    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-quotes:${IMAGE_TAG:-latest}
+    build: ./quotes
+    restart: unless-stopped
 
   caddy:
     image: caddy:2

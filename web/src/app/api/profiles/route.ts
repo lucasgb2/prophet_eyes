@@ -16,8 +16,7 @@ export const GET = wrap(async () => {
 
 export const POST = wrap(async (req) => {
   const uid = await requireUser();
-  const { name } = await req.json();
-  const { rows } = await pool.query("INSERT INTO profiles(user_id,name) VALUES ($1,$2) RETURNING id,name,symbol,timeframe,indicators", [uid, String(name || 'Nova aba').slice(0, 40)]);
+  const { rows } = await pool.query("INSERT INTO profiles(user_id,name,symbol) VALUES ($1,'PETR4','PETR4') RETURNING id,name,symbol,timeframe,indicators", [uid]);
   return NextResponse.json(rows[0]);
 });
 
@@ -27,7 +26,7 @@ export const PUT = wrap(async (req) => {
   const inds = (Array.isArray(p.indicators) ? p.indicators : []).filter((i: string) => INDICATOR_IDS.includes(i as any));
   if (!/^[A-Za-z0-9]{4,8}$/.test(p.symbol) || !TIMEFRAMES.includes(p.timeframe)) return NextResponse.json({ error: 'inválido' }, { status: 400 });
   await pool.query('UPDATE profiles SET name=$1,symbol=$2,timeframe=$3,indicators=$4 WHERE id=$5 AND user_id=$6',
-    [String(p.name).slice(0, 40), p.symbol.toUpperCase(), p.timeframe, JSON.stringify(inds), p.id, uid]);
+    [p.symbol.toUpperCase(), p.symbol.toUpperCase(), p.timeframe, JSON.stringify(inds), p.id, uid]);
   return NextResponse.json({ ok: true });
 });
 
