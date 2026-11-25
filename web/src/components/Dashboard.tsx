@@ -7,6 +7,7 @@ import { INDICATORS, INDICATOR_IDS, type IndicatorId } from '@/lib/indicators';
 import { triggerLevels } from '@/lib/levels';
 import { TIMEFRAMES, type Candle } from '@/lib/types';
 import type { Suggestion } from '@/lib/suggest';
+import type { Trade } from '@/lib/backtest';
 
 type Profile = { id: number; name: string; symbol: string; timeframe: string; indicators: string[] };
 type Quote = { price: number; changePct: number | null };
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const [live, setLive] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteErr, setQuoteErr] = useState('');
+  const [trades, setTrades] = useState<Trade[] | null>(null);
   const [signals, setSignals] = useState(true);
   const [toolId, setToolId] = useState<string | null>(null);
   const profile = profiles.find((p) => p.id === activeId);
@@ -103,7 +105,7 @@ export default function Dashboard() {
             </div>
             <div className="workspace">
               <div className="panel chartcol">
-                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart candles={candles} indicators={profile.indicators} livePrice={live ? quote?.price : null} showSignals={signals} />}
+                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart candles={candles} indicators={profile.indicators} livePrice={live ? quote?.price : null} showSignals={signals} trades={trades} />}
               </div>
               <aside className="panel suggest">
                 <b>Níveis de sinal</b>
@@ -139,7 +141,7 @@ export default function Dashboard() {
       {tool && profile && (
         <section className="toolpanel">
           <header><b>{tool.title}</b><button aria-label="Fechar" onClick={() => setToolId(null)}>×</button></header>
-          <div className="toolbody"><tool.Panel ctx={{ symbol: profile.symbol, timeframe: profile.timeframe }} /></div>
+          <div className="toolbody"><tool.Panel ctx={{ symbol: profile.symbol, timeframe: profile.timeframe, candles, indicators: profile.indicators, onTrades: setTrades }} /></div>
         </section>
       )}
       <nav className="rail" aria-label="Ferramentas">

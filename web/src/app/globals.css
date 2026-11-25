@@ -33,3 +33,5 @@ table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding
 .combo-list { position:absolute; z-index:20; top:100%; left:0; min-width:300px; margin:2px 0 0; padding:4px; list-style:none; background:var(--panel); border:1px solid var(--line); border-radius:6px; max-height:320px; overflow:auto; }
 .combo-list li { padding:6px 8px; border-radius:4px; cursor:pointer; } .combo-list li.hi, .combo-list li:hover { background:#222a34; }
 @media (max-width: 900px) { .workspace { flex-direction:column; } .chartcol { flex:2; } .suggest { width:auto; flex:1; margin:0 16px 12px; } .toolpanel { width:280px; } }
+.chips { display:flex; flex-wrap:wrap; gap:4px; } .chips button { padding:3px 8px; font-size:12px; }
+.toolbody th { color:var(--mut); font-weight:normal; font-size:12px; } .toolbody td, .toolbody th { padding:3px 6px; }

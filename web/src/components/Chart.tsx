@@ -3,10 +3,11 @@ import { useEffect, useRef } from 'react';
 import { createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts';
 import { INDICATORS, INDICATOR_IDS, sma, ema, rsi, macd, bollinger, donchian, vwap, stochastic, adx, obv } from '@/lib/indicators';
 import type { Candle } from '@/lib/types';
+import type { Trade } from '@/lib/backtest';
 
 const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i] == null ? [] : [{ time: time as UTCTimestamp, value: s[i]! }]));
 
-export default function Chart({ candles, indicators, livePrice, showSignals = true }: { candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean }) {
+export default function Chart({ candles, indicators, livePrice, showSignals = true, trades = null }: { candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   useEffect(() => {
@@ -70,7 +71,15 @@ export default function Chart({ candles, indicators, livePrice, showSignals = tr
       chart.addLineSeries({ color: '#79c0ff', lineWidth: 1, priceScaleId: 'obv' }).setData(line(t, obv(candles)));
       pane('obv', H);
     }
-    if (showSignals) {
+    if (trades) {
+      // Simulação ativa: mostra entradas (azul) e saídas (verde = ganho, vermelha = perda) em vez das setas dos indicadores
+      const marks = trades.flatMap((t) => [
+        { time: t.entryTime as UTCTimestamp, position: 'belowBar' as const, shape: 'arrowUp' as const, color: '#2f81f7', text: 'Compra' },
+        { time: t.exitTime as UTCTimestamp, position: 'aboveBar' as const, shape: 'arrowDown' as const, color: t.retPct > 0 ? '#26a69a' : '#ef5350', text: `${t.retPct > 0 ? '+' : ''}${t.retPct.toFixed(1)}%${t.open ? ' (aberta)' : ''}` },
+      ]);
+      const known = new Set(t); // ignora operações de outro papel/timeframe enquanto os candles não atualizam
+      main.setMarkers(marks.filter((m) => known.has(m.time as number)).sort((a, b) => (a.time as number) - (b.time as number)));
+    } else if (showSignals) {
       // Pontos de sinal: seta verde (compra) abaixo do candle, vermelha (venda) acima, com o nome do indicador
       const marks = INDICATOR_IDS.filter((id) => indicators.includes(id)).flatMap((id) =>
         INDICATORS[id].signals(candles).flatMap((sg, i) => sg === 0 ? [] : [{
@@ -85,7 +94,7 @@ export default function Chart({ candles, indicators, livePrice, showSignals = tr
     main.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: bottom + 0.03 } });
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, indicators, showSignals]);
+  }, [candles, indicators, showSignals, trades]);
   // Preço real: atualiza só o último candle (visual), sem tocar nos dados guardados nem nos indicadores.
   useEffect(() => {
     const last = candles.at(-1);
