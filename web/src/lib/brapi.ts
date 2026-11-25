@@ -1,5 +1,8 @@
 import type { Candle, Timeframe } from './types';
-import { INITIAL_RANGE } from './ranges';
+import { INITIAL_RANGE, clampRange, parseAllowedRanges } from './ranges';
+
+// Ranges liberados pelo plano da brapi: vem de BRAPI_RANGES ou é aprendido da mensagem de erro (400).
+let allowedRanges: string[] | null = parseAllowedRanges(process.env.BRAPI_RANGES ?? '');
 
 function headers() {
   const h: Record<string, string> = {};
@@ -19,9 +22,18 @@ async function fail(res: Response): Promise<never> {
 export async function fetchCandles(symbol: string, tf: Timeframe, range?: string): Promise<Candle[]> {
   const url = new URL(`https://brapi.dev/api/quote/${encodeURIComponent(symbol.toUpperCase())}`);
   url.searchParams.set('interval', INITIAL_RANGE[tf].interval);
-  url.searchParams.set('range', range ?? INITIAL_RANGE[tf].range);
+  const want = range ?? INITIAL_RANGE[tf].range;
+  url.searchParams.set('range', clampRange(want, allowedRanges));
   const res = await fetch(url, { headers: headers() });
-  if (!res.ok) await fail(res);
+  if (!res.ok) {
+    try { await fail(res); }
+    catch (e: any) {
+      // plano limitado: guarda os ranges permitidos e repete uma vez com o maior que cabe
+      const learned = e?.status === 400 ? parseAllowedRanges(String(e.message)) : null;
+      if (learned && !allowedRanges) { allowedRanges = learned; return fetchCandles(symbol, tf, want); }
+      throw e;
+    }
+  }
   const json = await res.json();
   const rows: any[] = json?.results?.[0]?.historicalDataPrice ?? [];
   return rows

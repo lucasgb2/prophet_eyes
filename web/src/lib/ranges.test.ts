@@ -9,3 +9,11 @@ test('cache de 3 semanas busca 1mo', () => assert.equal(pickRange('1d', now - 21
 test('gap maior que o máximo do intraday volta à janela inicial', () => assert.equal(pickRange('5m', now - 20 * 86400, now), '5d'));
 test('semanal respeita o mínimo de 3mo', () => assert.equal(pickRange('1wk', now - 86400, now), '3mo'));
 test('1m usa janela de 5d', () => assert.equal(pickRange('1m', null, now), '5d'));
+import { clampRange, parseAllowedRanges } from './ranges';
+const free = ['1d', '5d', '1mo', '3mo'];
+test('lê os ranges da mensagem da brapi', () =>
+  assert.deepEqual(parseAllowedRanges('O range "1y" não está disponível no seu plano. Ranges permitidos: 1d, 5d, 1mo, 3mo. Faça upgrade'), free));
+test('lê a lista de BRAPI_RANGES', () => assert.deepEqual(parseAllowedRanges('1d,5d,1mo'), ['1d', '5d', '1mo']));
+test('range permitido passa direto', () => assert.equal(clampRange('1mo', free), '1mo'));
+test('range acima do plano cai para o maior permitido', () => { assert.equal(clampRange('1y', free), '3mo'); assert.equal(clampRange('max', free), '3mo'); });
+test('sem limite conhecido não altera', () => assert.equal(clampRange('1y', null), '1y'));

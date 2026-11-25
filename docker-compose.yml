@@ -25,6 +25,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?defina no .env}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
       BRAPI_TOKEN: ${BRAPI_TOKEN:-}
+      BRAPI_RANGES: ${BRAPI_RANGES:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       QUOTES_URL: http://quotes:8000
 
