@@ -17,3 +17,10 @@ test('lê a lista de BRAPI_RANGES', () => assert.deepEqual(parseAllowedRanges('1
 test('range permitido passa direto', () => assert.equal(clampRange('1mo', free), '1mo'));
 test('range acima do plano cai para o maior permitido', () => { assert.equal(clampRange('1y', free), '3mo'); assert.equal(clampRange('max', free), '3mo'); });
 test('sem limite conhecido não altera', () => assert.equal(clampRange('1y', null), '1y'));
+import { firstGapStart } from './ranges';
+const D = 86400;
+test('lacuna: fim de semana não conta, buraco de semanas sim', () => {
+  assert.equal(firstGapStart([0, D, 2 * D, 5 * D, 6 * D], '1d'), null);
+  assert.equal(firstGapStart([0, D, 2 * D, 20 * D, 21 * D], '1d'), 2 * D);
+  assert.equal(firstGapStart([0, 7 * D, 14 * D], '1wk'), null);
+});

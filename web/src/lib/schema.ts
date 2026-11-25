@@ -21,6 +21,7 @@ async function run() {
       CREATE TABLE IF NOT EXISTS candle_sync (
         symbol TEXT NOT NULL, timeframe TEXT NOT NULL, synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         PRIMARY KEY (symbol, timeframe));
+      ALTER TABLE candle_sync ADD COLUMN IF NOT EXISTS gap_checked_at TIMESTAMPTZ;
       CREATE TABLE IF NOT EXISTS assets (
         symbol TEXT PRIMARY KEY, name TEXT NOT NULL);`);
     try { await client.query("SELECT create_hypertable('candles','ts', if_not_exists => true)"); } catch { /* sem TimescaleDB: tabela comum */ }

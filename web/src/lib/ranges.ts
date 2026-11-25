@@ -41,3 +41,16 @@ export function clampRange(range: string, allowed: string[] | null): string {
   const below = sorted.filter((r) => ORDER.indexOf(r) < want);
   return below.length ? below[below.length - 1] : sorted[0];
 }
+
+// ---- Lacunas no histórico guardado ----
+const MAX_STEP_DAYS: Record<Timeframe, number> = { '1m': 6, '5m': 6, '15m': 6, '30m': 6, '60m': 6, '1d': 6, '1wk': 10, '1mo': 40 };
+
+/**
+ * Início (epoch s) da primeira lacuna do histórico: o candle logo antes de um buraco maior que o normal
+ * (fim de semana prolongado e feriados cabem na tolerância). Null se não houver lacuna.
+ */
+export function firstGapStart(times: number[], tf: Timeframe): number | null {
+  const lim = MAX_STEP_DAYS[tf] * 86400;
+  for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] > lim) return times[i - 1];
+  return null;
+}

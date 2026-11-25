@@ -38,6 +38,28 @@ async function tick() {
   }
 }
 
+const SYNC_MS = 5 * 60_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Mantém o histórico próprio: para os papéis das abas e dos alertas ativos, sincroniza o timeframe em uso e o diário.
+ * getCandles só chama a brapi quando precisa (mercado aberto e cache velho, ou falta o fechamento do pregão),
+ * então fora do pregão este laço quase não gera requisições.
+ */
+async function syncHistory() {
+  const { rows } = await pool.query(`
+    SELECT symbol, timeframe FROM profiles
+    UNION SELECT symbol, timeframe FROM alerts WHERE active
+    UNION SELECT symbol, '1d' FROM profiles
+    UNION SELECT symbol, '1d' FROM alerts WHERE active`);
+  for (const r of rows) {
+    try { await getCandles(r.symbol, r.timeframe as Timeframe); } catch (e) { console.error('sync', r.symbol, r.timeframe, (e as Error).message); }
+    await sleep(500); // não dispara tudo de uma vez na brapi
+  }
+}
+
 console.log('worker iniciado');
+setInterval(() => syncHistory().catch(console.error), SYNC_MS);
+syncHistory().catch(console.error);
 setInterval(() => tick().catch(console.error), INTERVAL_MS);
 tick().catch(console.error);
