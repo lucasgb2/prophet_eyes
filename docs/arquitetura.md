@@ -57,3 +57,8 @@ Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `q
 - **Tela sem rolagem**: o layout ocupa 100% da altura; gráfico e painéis acompanham o tamanho da janela (`autoSize`).
 - **Timeframe de 1 minuto**: janela inicial e máxima de 5 dias; cache considerado fresco por 30 s. Depende de a brapi (e do plano do token) aceitar `interval=1m`.
 - **Quem busca o quê**: brapi = candles e busca de tickers (só quando o cache está velho, ou pelo worker de alertas); Yahoo/yfinance = só o preço ao vivo (`/api/quote`, a cada 15 s, só com "Preço real" ligado).
+
+## Atualizações (rodada 4)
+- **Sinais no gráfico**: setas de compra (verde, abaixo do candle) e venda (vermelha, acima) com o nome do indicador, para os indicadores ligados; botão "Sinais no gráfico" liga/desliga (preferência no navegador).
+- **Níveis de sinal** (`lib/levels.ts`): para cada indicador ligado, acha por bisseção o fechamento do candle atual (±15% do preço) que faria a regra dar compra/venda, reaproveitando `signals()`. Roda no navegador sobre os últimos 400 candles. Em indicadores de cruzamento o nível só vale para o candle atual.
+- **Sugestor**: retorno em 3, 5 e 10 candles, com custo de 0,1% por operação; a nota usa a média dos horizontes, penaliza amostra pequena (25/√n) e marca como "instável" quando a taxa de acerto da 1ª e da 2ª metade do histórico divergem. Ainda não é walk-forward com parâmetros ajustados; os indicadores têm parâmetros fixos.

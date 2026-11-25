@@ -22,3 +22,12 @@ test('adx forte e +DI > -DI em alta contínua', () => {
 });
 test('donchian usa máxima/mínima da janela', () => { const d = donchian(mk(25, (i) => i), 20); assert.equal(d.up[19], 20); assert.equal(d.lo[19], -1); });
 test('vwap = preço típico quando o preço é constante', () => assert.equal(vwap(mk(5, () => 10)).at(-1), 10));
+
+import { suggestIndicators } from './suggest';
+test('sugestor devolve ranking ordenado por nota e ignora amostras pequenas', () => {
+  const c = mk(300, (i) => 100 + 10 * Math.sin(i / 8));
+  const r = suggestIndicators(c);
+  assert.ok(r.length > 0);
+  for (let i = 1; i < r.length; i++) assert.ok(r[i - 1].score >= r[i].score);
+  assert.ok(r.every((x) => x.signals >= 5));
+});

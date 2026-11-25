@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Chart from './Chart';
 import SymbolInput from './SymbolInput';
 import { TOOLS } from './tools/registry';
-import { INDICATORS, INDICATOR_IDS } from '@/lib/indicators';
+import { INDICATORS, INDICATOR_IDS, type IndicatorId } from '@/lib/indicators';
+import { triggerLevels } from '@/lib/levels';
 import { TIMEFRAMES, type Candle } from '@/lib/types';
 import type { Suggestion } from '@/lib/suggest';
 
@@ -22,13 +23,14 @@ export default function Dashboard() {
   const [live, setLive] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteErr, setQuoteErr] = useState('');
+  const [signals, setSignals] = useState(true);
   const [toolId, setToolId] = useState<string | null>(null);
   const profile = profiles.find((p) => p.id === activeId);
   const tool = TOOLS.find((t) => t.id === toolId);
 
   useEffect(() => {
     j('/api/profiles').then((r) => r.json()).then((ps: Profile[]) => { setProfiles(ps); setActiveId(ps[0]?.id ?? null); });
-    try { setLive(localStorage.getItem('prophet_live') === '1'); } catch {}
+    try { setLive(localStorage.getItem('prophet_live') === '1'); setSignals(localStorage.getItem('prophet_signals') !== '0'); } catch {}
   }, []);
 
   const key = profile && `${profile.symbol}|${profile.timeframe}`;
@@ -58,6 +60,9 @@ export default function Dashboard() {
     return () => { stop = true; clearInterval(id); };
   }, [live, symbol]);
 
+  const toggleSignals = () => { const v = !signals; setSignals(v); try { localStorage.setItem('prophet_signals', v ? '1' : '0'); } catch {} };
+  const levels = useMemo(() => (candles.length && profile ? triggerLevels(candles, profile.indicators.filter((i) => i in INDICATORS) as IndicatorId[]) : []), [candles, profile?.indicators]);
+  const px = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const toggleLive = () => { const v = !live; setLive(v); try { localStorage.setItem('prophet_live', v ? '1' : '0'); } catch {} };
 
   const update = (patch: Partial<Profile>) => {
@@ -92,18 +97,37 @@ export default function Dashboard() {
             </div>
             <div className="bar">
               <span className="muted">Indicadores:</span>
+              <button className={signals ? 'on' : ''} onClick={toggleSignals} title="Setas de compra/venda no gráfico para os indicadores ligados">Sinais no gráfico</button>
+              <span className="muted">|</span>
               {INDICATOR_IDS.map((id) => <button key={id} className={profile.indicators.includes(id) ? 'on' : ''} onClick={() => toggle(id)}>{INDICATORS[id].label}</button>)}
             </div>
             <div className="workspace">
               <div className="panel chartcol">
-                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart candles={candles} indicators={profile.indicators} livePrice={live ? quote?.price : null} />}
+                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart candles={candles} indicators={profile.indicators} livePrice={live ? quote?.price : null} showSignals={signals} />}
               </div>
               <aside className="panel suggest">
-                <b>Indicadores sugeridos</b>
-                <p className="muted">{profile.symbol} · {profile.timeframe}. Ranking histórico (retorno 5 candles após cada sinal). Descreve o passado; não é recomendação.</p>
+                <b>Níveis de sinal</b>
+                <p className="muted">Fechamento do candle atual que faria cada indicador ligado dar sinal. Descreve a regra do indicador; não é recomendação.</p>
+                {levels.map((l) => (
+                  <div className="sug" key={l.id}>
+                    <div>
+                      <b>{l.label}</b>
+                      <div className="muted">
+                        {l.active !== 0 && <span style={{ color: l.active > 0 ? '#26a69a' : '#ef5350' }}>sinal de {l.active > 0 ? 'compra' : 'venda'} agora · </span>}
+                        {l.buy != null && <span style={{ color: '#26a69a' }}>compra se fechar {l.buy >= candles.at(-1)!.close ? 'acima de' : 'abaixo de'} {px(l.buy)}</span>}
+                        {l.buy != null && l.sell != null && ' · '}
+                        {l.sell != null && <span style={{ color: '#ef5350' }}>venda se fechar {l.sell >= candles.at(-1)!.close ? 'acima de' : 'abaixo de'} {px(l.sell)}</span>}
+                        {l.buy == null && l.sell == null && l.active === 0 && 'sem gatilho a ±15% do preço atual'}
+                      </div>
+                    </div>
+                  </div>))}
+                {!levels.length && <span className="muted">Ligue um indicador para ver os níveis.</span>}
+                <b style={{ marginTop: 14, display: 'block' }}>Indicadores sugeridos</b>
+                <p className="muted">{profile.symbol} · {profile.timeframe}. Ranking histórico: retorno em 3, 5 e 10 candles após cada sinal, já descontado 0,1% de custo por operação. Descreve o passado; não é recomendação.</p>
                 {sugg.map((s) => (
                   <div className="sug" key={s.id}>
-                    <div><b>{s.label}</b><div className="muted">{s.signals} sinais · acerto {(s.hitRate * 100).toFixed(0)}% · ret. médio {s.avgReturnPct.toFixed(2)}%</div></div>
+                    <div><b>{s.label}</b><div className="muted">{s.signals} sinais · acerto {(s.hitRate * 100).toFixed(0)}% · ret. líq. {s.avgReturnPct.toFixed(2)}%</div>
+                    {s.hitFirst != null && s.hitSecond != null && <div className="muted" style={{ color: s.stable ? undefined : '#d29922' }}>1ª metade {(s.hitFirst * 100).toFixed(0)}% · 2ª metade {(s.hitSecond * 100).toFixed(0)}%{s.stable ? '' : ' — instável'}</div>}</div>
                     <button disabled={profile.indicators.includes(s.id)} onClick={() => toggle(s.id)}>{profile.indicators.includes(s.id) ? 'Em uso' : 'Aplicar'}</button>
                   </div>))}
                 {!sugg.length && <span className="muted">Sem dados suficientes de sinais.</span>}

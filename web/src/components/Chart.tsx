@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts';
-import { sma, ema, rsi, macd, bollinger, donchian, vwap, stochastic, adx, obv } from '@/lib/indicators';
+import { INDICATORS, INDICATOR_IDS, sma, ema, rsi, macd, bollinger, donchian, vwap, stochastic, adx, obv } from '@/lib/indicators';
 import type { Candle } from '@/lib/types';
 
 const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i] == null ? [] : [{ time: time as UTCTimestamp, value: s[i]! }]));
 
-export default function Chart({ candles, indicators, livePrice }: { candles: Candle[]; indicators: string[]; livePrice?: number | null }) {
+export default function Chart({ candles, indicators, livePrice, showSignals = true }: { candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   useEffect(() => {
@@ -70,10 +70,22 @@ export default function Chart({ candles, indicators, livePrice }: { candles: Can
       chart.addLineSeries({ color: '#79c0ff', lineWidth: 1, priceScaleId: 'obv' }).setData(line(t, obv(candles)));
       pane('obv', H);
     }
+    if (showSignals) {
+      // Pontos de sinal: seta verde (compra) abaixo do candle, vermelha (venda) acima, com o nome do indicador
+      const marks = INDICATOR_IDS.filter((id) => indicators.includes(id)).flatMap((id) =>
+        INDICATORS[id].signals(candles).flatMap((sg, i) => sg === 0 ? [] : [{
+          time: candles[i].time as UTCTimestamp,
+          position: (sg > 0 ? 'belowBar' : 'aboveBar') as 'belowBar' | 'aboveBar',
+          shape: (sg > 0 ? 'arrowUp' : 'arrowDown') as 'arrowUp' | 'arrowDown',
+          color: sg > 0 ? '#26a69a' : '#ef5350',
+          text: id.toUpperCase(),
+        }]));
+      main.setMarkers(marks.sort((a, b) => (a.time as number) - (b.time as number)));
+    }
     main.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: bottom + 0.03 } });
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, indicators]);
+  }, [candles, indicators, showSignals]);
   // Preço real: atualiza só o último candle (visual), sem tocar nos dados guardados nem nos indicadores.
   useEffect(() => {
     const last = candles.at(-1);
