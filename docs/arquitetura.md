@@ -25,7 +25,7 @@ Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `q
 - **Perfis = abas**: tabela `profiles` por usuário (ativo, timeframe, indicadores escolhidos), editadas direto na UI.
 - **Alertas**: tabela `alerts` por usuário + `telegram_chat_id`; o worker avalia a cada 60 s e envia pelo bot, com intervalo mínimo de 1 h entre disparos do mesmo alerta.
 - **Sugestão de indicadores**: ranking empírico por ativo/timeframe — retorno 5 candles após cada sinal, taxa de acerto e penalidade para amostras pequenas. Descreve o passado; não é recomendação de investimento.
-- **Dados**: brapi.dev para candles (limite de range por intervalo intradiário). BCB SGS (Selic, câmbio, IPCA) na fase 2. Tabela `candles` (hypertable do TimescaleDB) já criada para cache/histórico, ainda sem uso.
+- **Dados**: brapi.dev para candles (limite de range por intervalo intradiário). BCB SGS (Selic, câmbio, IPCA) na fase 2. Tabela `candles` (hypertable do TimescaleDB) usada como cache de histórico (ver rodada 2).
 
 ## Segurança e operação
 - Nenhum segredo no repositório: tudo por variáveis de ambiente (`.env.example`).
@@ -41,7 +41,7 @@ Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `q
 6. **Fluxo (futuro)**: integração com Profit para book e times and trades.
 
 ## Limitações conhecidas do esqueleto
-- Indicadores recalculados no navegador a cada troca; candles não são cacheados.
+- Indicadores recalculados no navegador a cada troca.
 - Sem rate limit no login nem recuperação de senha.
 - O ticker é validado só por formato; erro da brapi aparece como mensagem no gráfico.
 
@@ -51,3 +51,9 @@ Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `q
 - **Autocomplete**: `/api/assets` busca por código ou nome da empresa na tabela `assets` (semeada com ~40 papéis e ampliada com a busca `quote/list` da brapi).
 - **Aba = papel**: o nome da aba é sempre o código do ativo selecionado.
 - **Barra lateral de ferramentas**: `components/tools/registry.tsx` é o registro; cada item (id, título, ícone, painel) vira um ícone na barra direita que abre um painel deslizante. Primeira ferramenta: notificações do Telegram (chat_id e alertas). Para adicionar outra, crie o painel e inclua um item no registro.
+
+## Atualizações (rodada 3)
+- **Novos indicadores** (em `lib/indicators.ts`, com sinais para o sugeridor): EMA 9, média 200, Donchian 20, VWAP (reinicia a cada dia), Estocástico 14,3,3, ADX 14 (+DI/-DI) e OBV. Estocástico, ADX e OBV têm painel próprio; os painéis dividem a altura de forma proporcional (até 20% cada, 60% no total).
+- **Tela sem rolagem**: o layout ocupa 100% da altura; gráfico e painéis acompanham o tamanho da janela (`autoSize`).
+- **Timeframe de 1 minuto**: janela inicial e máxima de 5 dias; cache considerado fresco por 30 s. Depende de a brapi (e do plano do token) aceitar `interval=1m`.
+- **Quem busca o quê**: brapi = candles e busca de tickers (só quando o cache está velho, ou pelo worker de alertas); Yahoo/yfinance = só o preço ao vivo (`/api/quote`, a cada 15 s, só com "Preço real" ligado).

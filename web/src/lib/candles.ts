@@ -4,7 +4,7 @@ import { fetchCandles } from './brapi';
 import { pickRange } from './ranges';
 import type { Candle, Timeframe } from './types';
 
-const FRESH_MS: Record<Timeframe, number> = { '5m': 60_000, '15m': 60_000, '30m': 60_000, '60m': 60_000, '1d': 300_000, '1wk': 300_000, '1mo': 300_000 };
+const FRESH_MS: Record<Timeframe, number> = { '1m': 30_000, '5m': 60_000, '15m': 60_000, '30m': 60_000, '60m': 60_000, '1d': 300_000, '1wk': 300_000, '1mo': 300_000 };
 const MAX_ROWS = 5000;
 
 async function readCache(symbol: string, tf: Timeframe): Promise<Candle[]> {

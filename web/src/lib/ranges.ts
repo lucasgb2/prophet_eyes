@@ -2,6 +2,7 @@ import type { Timeframe } from './types';
 
 // Janela inicial (primeira carga) e limite por timeframe, conforme o que a brapi aceita para cada intervalo.
 export const INITIAL_RANGE: Record<Timeframe, { interval: string; range: string; maxDays: number; minDays: number }> = {
+  '1m': { interval: '1m', range: '5d', maxDays: 5, minDays: 1 },
   '5m': { interval: '5m', range: '5d', maxDays: 5, minDays: 1 },
   '15m': { interval: '15m', range: '5d', maxDays: 5, minDays: 1 },
   '30m': { interval: '30m', range: '1mo', maxDays: 31, minDays: 1 },
