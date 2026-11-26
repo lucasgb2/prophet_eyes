@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Chart from './Chart';
 import SymbolInput from './SymbolInput';
 import { TOOLS } from './tools/registry';
+import { useBinanceStream } from './useBinanceStream';
 import { MARKET_IDS, MARKETS, fmtPrice, type MarketId } from '@/lib/markets';
 import { INDICATORS, INDICATOR_IDS, type IndicatorId } from '@/lib/indicators';
 import { triggerLevels } from '@/lib/levels';
@@ -48,9 +49,12 @@ export default function Dashboard() {
 
   // Preço real (yfinance): consulta a cada 15 s enquanto estiver ligado
   const symbol = profile?.symbol, market = profile?.market;
+  // Binance: websocket público (tempo real); o polling HTTP só roda enquanto o websocket não estiver conectado
+  const stream = useBinanceStream(live && market === 'binance', symbol, profile?.timeframe);
+  const viaWs = market === 'binance' && stream.connected && stream.price != null;
   useEffect(() => {
     setQuote(null); setQuoteErr('');
-    if (!live || !symbol || !market) return;
+    if (!live || !symbol || !market || viaWs) return;
     let stop = false;
     const tick = async () => {
       const r = await j(`/api/quote?market=${market}&symbol=${symbol}`);
@@ -61,7 +65,8 @@ export default function Dashboard() {
     tick();
     const id = setInterval(tick, MARKETS[market].quoteEveryMs);
     return () => { stop = true; clearInterval(id); };
-  }, [live, symbol, market]);
+  }, [live, symbol, market, viaWs]);
+  const shown: Quote | null = viaWs ? { price: stream.price!, changePct: stream.changePct } : quote;
 
   const toggleSignals = () => { const v = !signals; setSignals(v); try { localStorage.setItem('prophet_signals', v ? '1' : '0'); } catch {} };
   const levels = useMemo(() => (candles.length && profile ? triggerLevels(candles, profile.indicators.filter((i) => i in INDICATORS) as IndicatorId[]) : []), [candles, profile?.indicators]);
@@ -97,9 +102,9 @@ export default function Dashboard() {
               <SymbolInput symbol={profile.symbol} market={profile.market} onSelect={(s) => update({ symbol: s })} />
               {TIMEFRAMES.map((t) => <button key={t} className={t === profile.timeframe ? 'on' : ''} onClick={() => update({ timeframe: t })}>{t}</button>)}
               <span className="grow" />
-              <button className={live ? 'on' : ''} onClick={toggleLive} title={profile.market === 'b3' ? 'Cotação em tempo quase real via yfinance' : 'Preço ao vivo direto da Binance'}>Preço real</button>
-              {live && quote && <span><b>{fmtPrice(profile.market, profile.symbol, quote.price)}</b>{quote.changePct != null && <span style={{ color: quote.changePct >= 0 ? '#26a69a' : '#ef5350' }}> {quote.changePct >= 0 ? '+' : ''}{quote.changePct.toFixed(2)}%</span>}</span>}
-              {live && quoteErr && <span className="muted" title={quoteErr}>cotação indisponível</span>}
+              <button className={live ? 'on' : ''} onClick={toggleLive} title={profile.market === 'b3' ? 'Cotação em tempo quase real via yfinance' : 'Preço e candle ao vivo por websocket da Binance (cai para consulta a cada 5 s se desconectar)'}>Preço real</button>
+              {live && shown && <span><b>{fmtPrice(profile.market, profile.symbol, shown.price)}</b>{shown.changePct != null && <span style={{ color: shown.changePct >= 0 ? '#26a69a' : '#ef5350' }}> {shown.changePct >= 0 ? '+' : ''}{shown.changePct.toFixed(2)}%</span>}{viaWs && <span className="muted" title="Websocket da Binance conectado"> ●</span>}</span>}
+              {live && !viaWs && quoteErr && <span className="muted" title={quoteErr}>cotação indisponível</span>}
               <button onClick={async () => { await j(`/api/profiles?id=${profile.id}`, 'DELETE'); const rest = profiles.filter((p) => p.id !== profile.id); setProfiles(rest); setActiveId(rest[0]?.id ?? null); }}>Excluir aba</button>
             </div>
             <div className="bar">
@@ -110,7 +115,7 @@ export default function Dashboard() {
             </div>
             <div className="workspace">
               <div className="panel chartcol">
-                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? quote?.price : null} showSignals={signals} trades={trades} />}
+                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? shown?.price : null} liveCandle={live && viaWs ? stream.candle : null} showSignals={signals} trades={trades} />}
               </div>
               <aside className="panel suggest">
                 <b>Níveis de sinal</b>

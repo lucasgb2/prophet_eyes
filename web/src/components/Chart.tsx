@@ -8,7 +8,7 @@ import { pricePrecision, type MarketId } from '@/lib/markets';
 
 const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i] == null ? [] : [{ time: time as UTCTimestamp, value: s[i]! }]));
 
-export default function Chart({ candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3' }: { market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
+export default function Chart({ candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3', liveCandle = null }: { liveCandle?: Candle | null; market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   useEffect(() => {
@@ -103,8 +103,10 @@ export default function Chart({ candles, indicators, livePrice, showSignals = tr
   useEffect(() => {
     const last = candles.at(-1);
     if (!mainRef.current || !last) return;
+    // Websocket: o candle completo (inclusive um novo, quando o período vira) vem pronto da Binance
+    if (liveCandle && liveCandle.time >= last.time) { mainRef.current.update({ ...liveCandle, time: liveCandle.time as UTCTimestamp }); return; }
     if (livePrice == null) { mainRef.current.update({ ...last, time: last.time as UTCTimestamp }); return; }
     mainRef.current.update({ time: last.time as UTCTimestamp, open: last.open, high: Math.max(last.high, livePrice), low: Math.min(last.low, livePrice), close: livePrice });
-  }, [livePrice, candles, indicators]);
+  }, [livePrice, liveCandle, candles, indicators]);
   return <div ref={ref} className="chartbox" />;
 }
