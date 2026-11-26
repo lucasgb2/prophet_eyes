@@ -1,4 +1,5 @@
 'use client';
+import { useBinanceEnv } from '../useBinanceEnv';
 import { useCallback, useEffect, useState } from 'react';
 import { splitPair } from '@/lib/markets';
 import type { ToolCtx } from './registry';
@@ -15,7 +16,7 @@ const trim = (s: string) => (s.includes('.') ? s.replace(/0+$/, '').replace(/\.$
 const when = (t: number) => new Date(t * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export default function TradePanel({ ctx }: { ctx: ToolCtx }) {
-  const [env, setEnv] = useState<Env>('testnet');
+  const [env, setEnv] = useBinanceEnv();
   const [st, setSt] = useState<Status | null>(null);
   const [keys, setKeys] = useState({ apiKey: '', apiSecret: '' });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -31,8 +32,7 @@ export default function TradePanel({ ctx }: { ctx: ToolCtx }) {
   const conn = st?.[env];
   const pair = splitPair(ctx.symbol);
 
-  useEffect(() => { try { if (localStorage.getItem('prophet_binance_env') === 'production') setEnv('production'); } catch {} }, []);
-  const pickEnv = (e: Env) => { setEnv(e); setReview(false); setAck(false); setMsg(null); try { localStorage.setItem('prophet_binance_env', e); } catch {} };
+  const pickEnv = (e: Env) => { setEnv(e); setReview(false); setAck(false); setMsg(null); };
 
   const loadStatus = useCallback(() => j('/api/trade/credentials').then((r) => r.json()).then(setSt), []);
   useEffect(() => { loadStatus(); }, [loadStatus]);

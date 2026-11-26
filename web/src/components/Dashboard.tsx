@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Chart from './Chart';
 import SymbolInput from './SymbolInput';
 import { TOOLS } from './tools/registry';
+import { useBinanceEnv } from './useBinanceEnv';
 import { useBinanceStream } from './useBinanceStream';
 import { MARKET_IDS, MARKETS, fmtPrice, type MarketId } from '@/lib/markets';
 import { INDICATORS, INDICATOR_IDS, type IndicatorId } from '@/lib/indicators';
@@ -50,6 +51,7 @@ export default function Dashboard() {
   // Preço real (yfinance): consulta a cada 15 s enquanto estiver ligado
   const symbol = profile?.symbol, market = profile?.market;
   // Binance: websocket público (tempo real); o polling HTTP só roda enquanto o websocket não estiver conectado
+  const [binEnv] = useBinanceEnv();
   const stream = useBinanceStream(live && market === 'binance', symbol, profile?.timeframe);
   const viaWs = market === 'binance' && stream.connected && stream.price != null;
   useEffect(() => {
@@ -102,6 +104,7 @@ export default function Dashboard() {
               <SymbolInput symbol={profile.symbol} market={profile.market} onSelect={(s) => update({ symbol: s })} />
               {TIMEFRAMES.map((t) => <button key={t} className={t === profile.timeframe ? 'on' : ''} onClick={() => update({ timeframe: t })}>{t}</button>)}
               <span className="grow" />
+              {profile.market === 'binance' && <span className={`envtag ${binEnv}`} title={binEnv === 'production' ? 'Ordens usam dinheiro real (muda no painel Operar)' : 'Ambiente de teste: sem dinheiro real (muda no painel Operar)'}>{binEnv === 'production' ? 'Produção' : 'Homologação'}</span>}
               <button className={live ? 'on' : ''} onClick={toggleLive} title={profile.market === 'b3' ? 'Cotação em tempo quase real via yfinance' : 'Preço e candle ao vivo por websocket da Binance (cai para consulta a cada 5 s se desconectar)'}>Preço real</button>
               {live && shown && <span><b>{fmtPrice(profile.market, profile.symbol, shown.price)}</b>{shown.changePct != null && <span style={{ color: shown.changePct >= 0 ? '#26a69a' : '#ef5350' }}> {shown.changePct >= 0 ? '+' : ''}{shown.changePct.toFixed(2)}%</span>}{viaWs && <span className="muted" title="Websocket da Binance conectado"> ●</span>}</span>}
               {live && !viaWs && quoteErr && <span className="muted" title={quoteErr}>cotação indisponível</span>}
