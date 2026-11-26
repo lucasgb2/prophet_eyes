@@ -50,7 +50,7 @@ export default function TradePanel({ ctx }: { ctx: ToolCtx }) {
     if (r.ok) setOrders(b);
   }, [env, ctx.symbol, conn?.configured]);
   useEffect(() => { loadAccount(); loadOrders(); }, [loadAccount, loadOrders]);
-  useEffect(() => { setRules(null); j(`/api/trade/rules?symbol=${ctx.symbol}`).then((r) => r.json()).then((b) => b.rules && setRules(b)); setReview(false); }, [ctx.symbol]);
+  useEffect(() => { setRules(null); j(`/api/trade/rules?env=${env}&symbol=${ctx.symbol}`).then((r) => r.json()).then((b) => b.rules && setRules(b)); setReview(false); }, [ctx.symbol, env]);
 
   const price = o.type === 'LIMIT' && Number(o.price) > 0 ? Number(o.price) : rules?.price ?? ctx.candles.at(-1)?.close ?? 0;
   const notional = (Number(o.quantity.replace(',', '.')) || 0) * price;

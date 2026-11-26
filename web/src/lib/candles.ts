@@ -1,7 +1,7 @@
 import { pool } from './db';
 import { ensureSchema } from './schema';
 import { fetchCandles } from './brapi';
-import { fetchKlines } from './binance';
+import { fetchKlines, type Env } from './binance';
 import { MARKETS, cacheSymbol, type MarketId } from './markets';
 import { INITIAL_RANGE, firstGapStart, pickRange } from './ranges';
 import { needsRefresh } from './market';
@@ -39,20 +39,20 @@ const inflight = new Map<string, Promise<Result>>(); // uma busca por vez por pa
  * e sempre pedindo só o trecho desde o último candle guardado (ou desde uma lacuna, uma vez por dia).
  * Se a brapi falhar mas houver cache, devolve o cache (stale).
  */
-export function getCandles(symbolRaw: string, tf: Timeframe, market: MarketId = 'b3'): Promise<Result> {
+export function getCandles(symbolRaw: string, tf: Timeframe, market: MarketId = 'b3', env: Env = 'production'): Promise<Result> {
   const symbol = symbolRaw.toUpperCase();
-  const key = `${market}|${symbol}|${tf}`;
+  const key = `${market}|${env}|${symbol}|${tf}`;
   let p = inflight.get(key);
   if (!p) {
-    p = load(symbol, tf, market).finally(() => inflight.delete(key));
+    p = load(symbol, tf, market, env).finally(() => inflight.delete(key));
     inflight.set(key, p);
   }
   return p;
 }
 
-async function load(sym: string, tf: Timeframe, market: MarketId): Promise<Result> {
+async function load(sym: string, tf: Timeframe, market: MarketId, env: Env): Promise<Result> {
   await ensureSchema();
-  const symbol = cacheSymbol(market, sym); // chave no banco (B3: código puro; Binance: BINANCE:BTCUSDT)
+  const symbol = cacheSymbol(market, sym, env === 'testnet'); // chave no banco (B3: código puro; Binance: BINANCE:BTCUSDT)
   const cached = await readCache(symbol, tf);
   const sync = (await pool.query(
     `SELECT extract(epoch from synced_at)::float8 AS synced,
@@ -65,7 +65,7 @@ async function load(sym: string, tf: Timeframe, market: MarketId): Promise<Resul
     const gap = cached.length && (sync?.gap_age == null || sync.gap_age > GAP_RECHECK_SEC) ? firstGapStart(cached.map((c) => c.time), tf) : null;
     const from = last == null ? null : gap != null ? Math.min(last, gap) : last;
     let fresh: Candle[];
-    if (market === 'binance') fresh = await fetchKlines(sym, tf, { fromSec: from });
+    if (market === 'binance') fresh = await fetchKlines(sym, tf, { fromSec: from, env });
     else {
       const range = pickRange(tf, from);
       try { fresh = await fetchCandles(sym, tf, range); }

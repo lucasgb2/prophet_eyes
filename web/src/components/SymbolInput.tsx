@@ -4,7 +4,7 @@ import { MARKETS, validSymbol, type MarketId } from '@/lib/markets';
 
 type Asset = { symbol: string; name: string };
 
-export default function SymbolInput({ symbol, market = 'b3', onSelect }: { symbol: string; market?: MarketId; onSelect: (s: string) => void }) {
+export default function SymbolInput({ symbol, market = 'b3', env = 'production', onSelect }: { symbol: string; market?: MarketId; env?: string; onSelect: (s: string) => void }) {
   const [text, setText] = useState(symbol);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Asset[]>([]);
@@ -19,11 +19,11 @@ export default function SymbolInput({ symbol, market = 'b3', onSelect }: { symbo
     const id = ++seq.current;
     const q = text === symbol ? '' : text.trim();
     const t = setTimeout(async () => {
-      const r = await fetch(`/api/assets?market=${market}&q=${encodeURIComponent(q)}`);
+      const r = await fetch(`/api/assets?market=${market}&env=${env}&q=${encodeURIComponent(q)}`);
       if (r.ok && id === seq.current) { setItems(await r.json()); setHi(0); }
     }, 150);
     return () => clearTimeout(t);
-  }, [text, open, symbol, market]);
+  }, [text, open, symbol, market, env]);
 
   const pick = (s: string) => { const v = s.toUpperCase(); setOpen(false); if (validSymbol(market, v)) onSelect(v); else setText(symbol); };
 

@@ -43,7 +43,7 @@ export const POST = wrap(async (req) => {
   const input: OrderInput = { side: b.side, type: b.type, quantity: String(b.quantity ?? ''), price: b.price == null ? undefined : String(b.price) };
   const mode = test ? 'test' : 'live';
   try {
-    const [rules, tick] = await Promise.all([symbolRules(symbol), ticker24h(symbol)]);
+    const [rules, tick] = await Promise.all([symbolRules(symbol, env), ticker24h(symbol, env)]);
     const order = prepareOrder(rules, input, tick.price);
     if (env === 'production') {
       if (!STABLE_QUOTES.includes(rules.quote)) return err(`Em produção só são aceitos pares cotados em stablecoin (${STABLE_QUOTES.join(', ')}).`);

@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { pool } from '@/lib/db';
 import { ensureSchema } from '@/lib/schema';
 import { searchAssets } from '@/lib/brapi';
-import { searchSymbols } from '@/lib/binance';
+import { envOf, searchSymbols } from '@/lib/binance';
 import { marketOf } from '@/lib/markets';
 
 const query = async (q: string) => (await pool.query(
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   if (!market) return NextResponse.json({ error: 'mercado inválido' }, { status: 400 });
   const q = (sp.get('q') ?? '').trim().slice(0, 30).replace(/[\\%_]/g, '');
   if (market === 'binance') {
-    try { return NextResponse.json(await searchSymbols(q)); } catch { return NextResponse.json([]); }
+    try { return NextResponse.json(await searchSymbols(q, envOf(sp.get('env')))); } catch { return NextResponse.json([]); }
   }
   let rows = await query(q);
   if (q.length >= 2 && rows.length < 5) {

@@ -89,3 +89,7 @@ Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `q
   - quantidade e preço são ajustados aos filtros do par (passo, mínimos, valor mínimo) com aritmética decimal exata antes de ir à Binance;
   - 10 ordens reais por minuto por usuário; toda tentativa (inclusive recusadas) fica em `order_log`.
 - **Limitações**: só Spot e só chaves HMAC; a testnet tem preços próprios (o gráfico usa o mercado real); o limite de frequência é em memória (zera ao reiniciar); `BINANCE_ALLOW_PRODUCTION` é por servidor, não por usuário; o cadastro de ordens não tem stop/OCO; Binance.com pode estar indisponível em alguns países.
+
+### Ambiente também nos dados (Binance)
+
+O ambiente escolhido (homologação/produção) vale para os dados do gráfico, não só para as ordens: em homologação, candles, cotação, busca de pares, regras do par e websocket vêm da testnet (`testnet.binance.vision`, `stream.testnet.binance.vision`); em produção, do mercado real. As rotas recebem `env`; o cache usa chaves separadas (`BINANCE:BTCUSDT` e `BINANCE-TEST:BTCUSDT`) para não misturar históricos. A testnet tem histórico curto (ex.: ~50 candles diários) e movimento próprio. O worker (alertas e sincronização de histórico) usa sempre produção. Variáveis opcionais: `BINANCE_TESTNET_URL`, `NEXT_PUBLIC_BINANCE_TESTNET_WS_URL`.

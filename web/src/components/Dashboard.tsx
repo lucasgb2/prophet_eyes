@@ -30,6 +30,9 @@ export default function Dashboard() {
   const [signals, setSignals] = useState(true);
   const [toolId, setToolId] = useState<string | null>(null);
   const profile = profiles.find((p) => p.id === activeId);
+  const [binEnv, , envReady] = useBinanceEnv();
+  const dataEnv = profile?.market === 'binance' ? binEnv : 'production'; // B3 não tem ambiente de teste
+  const q_env = `&env=${dataEnv}`;
   const tools = TOOLS.filter((t) => !t.markets || (profile && t.markets.includes(profile.market)));
   const tool = tools.find((t) => t.id === toolId);
 
@@ -38,11 +41,11 @@ export default function Dashboard() {
     try { setLive(localStorage.getItem('prophet_live') === '1'); setSignals(localStorage.getItem('prophet_signals') !== '0'); } catch {}
   }, []);
 
-  const key = profile && `${profile.market}|${profile.symbol}|${profile.timeframe}`;
+  const key = profile && envReady && `${profile.market}|${dataEnv}|${profile.symbol}|${profile.timeframe}`;
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || !envReady) return;
     setErr(''); setSugg([]);
-    const q = `market=${profile.market}&symbol=${profile.symbol}&tf=${profile.timeframe}`;
+    const q = `market=${profile.market}&symbol=${profile.symbol}&tf=${profile.timeframe}${q_env}`;
     j(`/api/candles?${q}`).then(async (r) => (r.ok ? setCandles(await r.json()) : (setCandles([]), setErr((await r.json()).error))));
     j(`/api/suggest?${q}`).then(async (r) => r.ok && setSugg(await r.json()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -51,15 +54,14 @@ export default function Dashboard() {
   // Preço real (yfinance): consulta a cada 15 s enquanto estiver ligado
   const symbol = profile?.symbol, market = profile?.market;
   // Binance: websocket público (tempo real); o polling HTTP só roda enquanto o websocket não estiver conectado
-  const [binEnv] = useBinanceEnv();
-  const stream = useBinanceStream(live && market === 'binance', symbol, profile?.timeframe);
+  const stream = useBinanceStream(live && market === 'binance' && envReady, symbol, profile?.timeframe, dataEnv);
   const viaWs = market === 'binance' && stream.connected && stream.price != null;
   useEffect(() => {
     setQuote(null); setQuoteErr('');
-    if (!live || !symbol || !market || viaWs) return;
+    if (!live || !symbol || !market || viaWs || !envReady) return;
     let stop = false;
     const tick = async () => {
-      const r = await j(`/api/quote?market=${market}&symbol=${symbol}`);
+      const r = await j(`/api/quote?market=${market}&symbol=${symbol}${q_env}`);
       const body = await r.json();
       if (stop) return;
       if (r.ok) { setQuote(body); setQuoteErr(''); } else setQuoteErr(body.error ?? 'erro');
@@ -67,7 +69,7 @@ export default function Dashboard() {
     tick();
     const id = setInterval(tick, MARKETS[market].quoteEveryMs);
     return () => { stop = true; clearInterval(id); };
-  }, [live, symbol, market, viaWs]);
+  }, [live, symbol, market, viaWs, dataEnv, envReady]);
   const shown: Quote | null = viaWs ? { price: stream.price!, changePct: stream.changePct } : quote;
 
   const toggleSignals = () => { const v = !signals; setSignals(v); try { localStorage.setItem('prophet_signals', v ? '1' : '0'); } catch {} };
@@ -101,7 +103,7 @@ export default function Dashboard() {
               <select aria-label="Mercado" value={profile.market} onChange={(e) => update({ market: e.target.value as MarketId })}>
                 {MARKET_IDS.map((m) => <option key={m} value={m}>{MARKETS[m].label}</option>)}
               </select>
-              <SymbolInput symbol={profile.symbol} market={profile.market} onSelect={(s) => update({ symbol: s })} />
+              <SymbolInput symbol={profile.symbol} market={profile.market} env={dataEnv} onSelect={(s) => update({ symbol: s })} />
               {TIMEFRAMES.map((t) => <button key={t} className={t === profile.timeframe ? 'on' : ''} onClick={() => update({ timeframe: t })}>{t}</button>)}
               <span className="grow" />
               {profile.market === 'binance' && <span className={`envtag ${binEnv}`} title={binEnv === 'production' ? 'Ordens usam dinheiro real (muda no painel Operar)' : 'Ambiente de teste: sem dinheiro real (muda no painel Operar)'}>{binEnv === 'production' ? 'Produção' : 'Homologação'}</span>}

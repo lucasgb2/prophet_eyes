@@ -28,7 +28,7 @@ export const validSymbol = (m: MarketId, s: unknown): s is string => typeof s ==
 export const marketOf = (x: unknown): MarketId | null => (x == null || x === '' ? 'b3' : isMarket(x) ? x : null);
 
 /** Chave do símbolo nas tabelas de cache: B3 mantém o código puro; os demais ganham prefixo (BINANCE:BTCUSDT). */
-export const cacheSymbol = (m: MarketId, symbol: string) => (m === 'b3' ? symbol : `${m.toUpperCase()}:${symbol}`);
+export const cacheSymbol = (m: MarketId, symbol: string, testnet = false) => (m === 'b3' ? symbol : `${m.toUpperCase()}${testnet ? '-TEST' : ''}:${symbol}`);
 
 const QUOTES = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'TUSD', 'BTC', 'ETH', 'BNB', 'BRL', 'EUR', 'TRY'];
 /** Separa um par da Binance em moeda base e de cotação (ex.: BTCUSDT -> BTC, USDT). */

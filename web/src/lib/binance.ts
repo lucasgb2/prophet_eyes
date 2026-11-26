@@ -4,6 +4,8 @@ import { STABLE_QUOTES, splitPair } from './markets';
 
 // ---------- Dados públicos (sem chave) ----------
 const DATA = () => process.env.BINANCE_DATA_URL ?? 'https://data-api.binance.vision';
+/** Dados públicos: homologação usa o mercado da testnet (preços e movimento próprios); produção, o mercado real. */
+const dataBase = (env: Env = 'production') => (env === 'testnet' ? (process.env.BINANCE_TESTNET_URL ?? 'https://testnet.binance.vision') : DATA());
 const INTERVAL: Record<Timeframe, string> = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '60m': '1h', '1d': '1d', '1wk': '1w', '1mo': '1M' };
 const PAGE = 1000;
 
@@ -28,12 +30,12 @@ export function parseKlines(rows: any[][]): Candle[] {
  * Candles da Binance. Sem `fromSec`: os últimos `initialPages`·1000 candles. Com `fromSec`: do candle indicado até agora
  * (o candle em formação vem junto e é reescrito no cache a cada busca).
  */
-export async function fetchKlines(symbol: string, tf: Timeframe, opts: { fromSec?: number | null; initialPages?: number } = {}): Promise<Candle[]> {
+export async function fetchKlines(symbol: string, tf: Timeframe, opts: { fromSec?: number | null; initialPages?: number; env?: Env } = {}): Promise<Candle[]> {
   const q = { symbol, interval: INTERVAL[tf], limit: PAGE };
   if (opts.fromSec == null) {
-    let out = parseKlines(await get(DATA(), '/api/v3/klines', q));
+    let out = parseKlines(await get(dataBase(opts.env), '/api/v3/klines', q));
     for (let p = 1; p < (opts.initialPages ?? 2) && out.length >= PAGE; p++) {
-      const older = parseKlines(await get(DATA(), '/api/v3/klines', { ...q, endTime: out[0].time * 1000 - 1 }));
+      const older = parseKlines(await get(dataBase(opts.env), '/api/v3/klines', { ...q, endTime: out[0].time * 1000 - 1 }));
       if (!older.length) break;
       out = [...older, ...out];
       if (older.length < PAGE) break;
@@ -42,7 +44,7 @@ export async function fetchKlines(symbol: string, tf: Timeframe, opts: { fromSec
   }
   let out: Candle[] = [], start = opts.fromSec * 1000;
   for (let p = 0; p < 20; p++) {
-    const page = parseKlines(await get(DATA(), '/api/v3/klines', { ...q, startTime: start }));
+    const page = parseKlines(await get(dataBase(opts.env), '/api/v3/klines', { ...q, startTime: start }));
     out = out.concat(page);
     if (page.length < PAGE) break;
     start = page[page.length - 1].time * 1000 + 1;
@@ -50,22 +52,24 @@ export async function fetchKlines(symbol: string, tf: Timeframe, opts: { fromSec
   return out;
 }
 
-export async function ticker24h(symbol: string) {
-  const t = await get(DATA(), '/api/v3/ticker/24hr', { symbol });
+export async function ticker24h(symbol: string, env: Env = 'production') {
+  const t = await get(dataBase(env), '/api/v3/ticker/24hr', { symbol });
   return { symbol, price: +t.lastPrice, previousClose: +t.prevClosePrice, changePct: +t.priceChangePercent, source: 'binance', fetchedAt: Math.floor(Date.now() / 1000) };
 }
 
-let symbolsCache: { at: number; list: string[] } | null = null;
-async function allSymbols(): Promise<string[]> {
-  if (symbolsCache && Date.now() - symbolsCache.at < 3600_000) return symbolsCache.list;
-  const rows: { symbol: string }[] = await get(DATA(), '/api/v3/ticker/price');
-  symbolsCache = { at: Date.now(), list: rows.map((r) => r.symbol) };
-  return symbolsCache.list;
+const symbolsCache: Partial<Record<Env, { at: number; list: string[] }>> = {};
+async function allSymbols(env: Env): Promise<string[]> {
+  const hit = symbolsCache[env];
+  if (hit && Date.now() - hit.at < 3600_000) return hit.list;
+  const rows: { symbol: string }[] = await get(dataBase(env), '/api/v3/ticker/price');
+  const list = rows.map((r) => r.symbol);
+  symbolsCache[env] = { at: Date.now(), list };
+  return list;
 }
 
 const POPULAR = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'BTCBRL', 'ETHBRL', 'USDTBRL'];
-export async function searchSymbols(q: string): Promise<{ symbol: string; name: string }[]> {
-  const all = await allSymbols();
+export async function searchSymbols(q: string, env: Env = 'production'): Promise<{ symbol: string; name: string }[]> {
+  const all = await allSymbols(env);
   const name = (s: string) => { const p = splitPair(s); return p.quote ? `${p.base} / ${p.quote}` : s; };
   const up = q.toUpperCase();
   const pick = !up ? POPULAR.filter((s) => all.includes(s))
@@ -79,10 +83,11 @@ export async function searchSymbols(q: string): Promise<{ symbol: string; name: 
 // ---------- Regras do par (filtros de quantidade, preço e valor mínimo) ----------
 export type Rules = { symbol: string; status: string; base: string; quote: string; stepSize: string; minQty: string; maxQty: string; tickSize: string; minPrice: string; minNotional: string };
 const rulesCache = new Map<string, { at: number; r: Rules }>();
-export async function symbolRules(symbol: string): Promise<Rules> {
-  const hit = rulesCache.get(symbol);
+export async function symbolRules(symbol: string, env: Env = 'production'): Promise<Rules> {
+  const ck = `${env}|${symbol}`;
+  const hit = rulesCache.get(ck);
   if (hit && Date.now() - hit.at < 3600_000) return hit.r;
-  const info = await get(DATA(), '/api/v3/exchangeInfo', { symbol });
+  const info = await get(dataBase(env), '/api/v3/exchangeInfo', { symbol });
   const s = info.symbols?.[0];
   if (!s) throw new BinanceError(400, -1121, 'Par inexistente na Binance');
   const f = (t: string) => s.filters.find((x: any) => x.filterType === t) ?? {};
@@ -92,7 +97,7 @@ export async function symbolRules(symbol: string): Promise<Rules> {
     tickSize: f('PRICE_FILTER').tickSize ?? '0.00000001', minPrice: f('PRICE_FILTER').minPrice ?? '0',
     minNotional: (f('NOTIONAL').minNotional ?? f('MIN_NOTIONAL').minNotional ?? '0'),
   };
-  rulesCache.set(symbol, { at: Date.now(), r });
+  rulesCache.set(ck, { at: Date.now(), r });
   return r;
 }
 
@@ -142,6 +147,8 @@ export function prepareOrder(rules: Rules, o: OrderInput, lastPrice: number): Pr
 
 // ---------- Operações autenticadas (homologação ou produção) ----------
 export type Env = 'testnet' | 'production';
+/** Ambiente vindo de um parâmetro: só 'testnet' muda o padrão (produção). */
+export const envOf = (x: unknown): Env => (x === 'testnet' ? 'testnet' : 'production');
 export const isEnv = (x: unknown): x is Env => x === 'testnet' || x === 'production';
 export type Creds = { apiKey: string; apiSecret: string };
 const TRADE_URL: Record<Env, () => string> = {
