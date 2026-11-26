@@ -4,6 +4,7 @@ import Chart from './Chart';
 import SymbolInput from './SymbolInput';
 import { TOOLS } from './tools/registry';
 import IndicatorHelpModal from './IndicatorHelpModal';
+import RankingHelpModal from './RankingHelpModal';
 import { useBinanceEnv } from './useBinanceEnv';
 import { useBinanceStream } from './useBinanceStream';
 import { MARKET_IDS, MARKETS, fmtPrice, type MarketId } from '@/lib/markets';
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteErr, setQuoteErr] = useState('');
   const [trades, setTrades] = useState<Trade[] | null>(null);
+  const [rankHelp, setRankHelp] = useState(false); // explicação do ranking aberta
   const [helpId, setHelpId] = useState<IndicatorId | null>(null); // indicador cuja explicação está aberta
   const [planB3, setPlanB3] = useState<string[] | null>(null);
   const [freeB3, setFreeB3] = useState<string[]>([]); // papéis de teste da brapi, sem limite de timeframe
@@ -87,7 +89,14 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planB3, freeB3, profile?.market, profile?.symbol, profile?.timeframe]);
   const toggleSignals = () => { const v = !signals; setSignals(v); try { localStorage.setItem('prophet_signals', v ? '1' : '0'); } catch {} };
-  const levels = useMemo(() => (candles.length && profile ? triggerLevels(candles, profile.indicators.filter((i) => i in INDICATORS) as IndicatorId[]) : []), [candles, profile?.indicators]);
+  // Níveis de gatilho de cada indicador ligado ou sugerido: aparecem dentro do cartão do indicador
+  const levelIds = useMemo(() => [...new Set([...(profile?.indicators ?? []), ...sugg.map((x) => x.id)])].filter((x) => x in INDICATORS) as IndicatorId[], [profile?.indicators, sugg]);
+  const levels = useMemo(() => (candles.length && profile ? triggerLevels(candles, levelIds) : []), [candles, levelIds]);
+  const cards = [
+    ...sugg.map((x) => ({ id: x.id as IndicatorId, label: x.label, s: x as Suggestion | null })),
+    ...(profile?.indicators ?? []).filter((id) => id in INDICATORS && !sugg.some((x) => x.id === id)).map((id) => ({ id: id as IndicatorId, label: INDICATORS[id as IndicatorId].label, s: null })),
+  ];
+  const levelOf = (id: string) => levels.find((l) => l.id === id);
   const px = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const toggleLive = () => { const v = !live; setLive(v); try { localStorage.setItem('prophet_live', v ? '1' : '0'); } catch {} };
 
@@ -141,47 +150,47 @@ export default function Dashboard() {
                 {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? shown?.price : null} liveCandle={live && viaWs ? stream.candle : null} showSignals={signals} trades={trades} />}
               </div>
               <aside className="panel suggest">
-                <b>Níveis de sinal</b>
-                <p className="muted">Fechamento do candle atual que faria cada indicador ligado dar sinal. Descreve a regra do indicador; não é recomendação.</p>
-                {levels.map((l) => (
-                  <div className="sug" key={l.id}>
-                    <div>
-                      <b>{l.label}</b> <button className="help" aria-label={`Como funciona: ${l.label}`} title="Como funciona" onClick={() => setHelpId(l.id)}>?</button>
-                      <div className="muted">
-                        {l.active !== 0 && <span style={{ color: l.active > 0 ? '#26a69a' : '#ef5350' }}>sinal de {l.active > 0 ? 'compra' : 'venda'} agora · </span>}
-                        {l.buy != null && <span style={{ color: '#26a69a' }}>compra se fechar {l.buy >= candles.at(-1)!.close ? 'acima de' : 'abaixo de'} {px(l.buy)}</span>}
-                        {l.buy != null && l.sell != null && ' · '}
-                        {l.sell != null && <span style={{ color: '#ef5350' }}>venda se fechar {l.sell >= candles.at(-1)!.close ? 'acima de' : 'abaixo de'} {px(l.sell)}</span>}
-                        {l.buy == null && l.sell == null && l.active === 0 && 'sem gatilho a ±15% do preço atual'}
+                <div className="sughead"><b>Indicadores sugeridos</b><button className="help" aria-label="Como ler os indicadores sugeridos" title="Como ler os indicadores sugeridos" onClick={() => setRankHelp(true)}>?</button></div>
+                <p className="muted">{profile.symbol} · {profile.timeframe}. Ordenados pelo que cada indicador teria rendido neste papel no passado. Em cada cartão, o preço de fechamento que faria o indicador dar sinal hoje. Não é recomendação.</p>
+                {cards.map(({ id, label, s }) => {
+                  const l = levelOf(id), last = candles.at(-1)?.close ?? 0;
+                  return (
+                    <div className="sugcard" key={id}>
+                      <div className="sughead">
+                        <b>{label}</b>
+                        <button className="help" aria-label={`Como funciona: ${label}`} title="Como funciona" onClick={() => setHelpId(id)}>?</button>
+                        <span className="grow" />
+                        <button disabled={profile.indicators.includes(id)} onClick={() => toggle(id)}>{profile.indicators.includes(id) ? 'Em uso' : 'Aplicar'}</button>
                       </div>
-                    </div>
-                  </div>))}
-                {!levels.length && <span className="muted">Ligue um indicador para ver os níveis.</span>}
-                <b style={{ marginTop: 14, display: 'block' }}>Indicadores sugeridos</b>
-                <p className="muted">{profile.symbol} · {profile.timeframe}. Ranking histórico: retorno em 3, 5 e 10 candles após cada sinal, já descontado 0,1% de custo por operação. Descreve o passado; não é recomendação.</p>
-                {sugg.map((s) => (
-                  <div className="sugcard" key={s.id}>
-                    <div className="sughead">
-                      <b>{s.label}</b>
-                      <button className="help" aria-label={`Como funciona: ${s.label}`} title="Como funciona" onClick={() => setHelpId(s.id)}>?</button>
-                      <span className="grow" />
-                      <button disabled={profile.indicators.includes(s.id)} onClick={() => toggle(s.id)}>{profile.indicators.includes(s.id) ? 'Em uso' : 'Aplicar'}</button>
-                    </div>
-                    <div className="sugrow"><span>Sinais: <b>{s.signals}</b></span><span>Acerto: <b>{(s.hitRate * 100).toFixed(0)}%</b></span></div>
-                    <div className="sugrow"><span>Ret. líq.: <b style={{ color: s.avgReturnPct >= 0 ? '#26a69a' : '#ef5350' }}>{s.avgReturnPct.toFixed(2)}%</b></span></div>
-                    {s.hitFirst != null && s.hitSecond != null && (
-                      <>
-                        <div className="sugrow"><span>1ª metade <b>{(s.hitFirst * 100).toFixed(0)}%</b></span><span>2ª metade <b>{(s.hitSecond * 100).toFixed(0)}%</b></span></div>
-                        {!s.stable && <div className="sugwarn">Resultado instável entre as duas metades</div>}
-                      </>
-                    )}
-                  </div>))}
-                {!sugg.length && <span className="muted">Sem dados suficientes de sinais.</span>}
+                      {s ? (
+                        <>
+                          <div className="sugrow"><span>Sinais: <b>{s.signals}</b></span><span>Acerto: <b>{(s.hitRate * 100).toFixed(0)}%</b></span></div>
+                          <div className="sugrow"><span>Ret. líq.: <b style={{ color: s.avgReturnPct >= 0 ? '#26a69a' : '#ef5350' }}>{s.avgReturnPct.toFixed(2)}%</b></span></div>
+                          {s.hitFirst != null && s.hitSecond != null && (
+                            <>
+                              <div className="sugrow"><span>1ª metade <b>{(s.hitFirst * 100).toFixed(0)}%</b></span><span>2ª metade <b>{(s.hitSecond * 100).toFixed(0)}%</b></span></div>
+                              {!s.stable && <div className="sugwarn">Resultado instável entre as duas metades</div>}
+                            </>
+                          )}
+                        </>
+                      ) : <div className="muted">Sem dados suficientes de sinais.</div>}
+                      {l && (
+                        <div className="suglevels">
+                          {l.active !== 0 && <div style={{ color: l.active > 0 ? '#26a69a' : '#ef5350' }}>Sinal de {l.active > 0 ? 'compra' : 'venda'} agora</div>}
+                          {l.buy != null && <div style={{ color: '#26a69a' }}>Compra se fechar {l.buy >= last ? 'acima de' : 'abaixo de'} {px(l.buy)}</div>}
+                          {l.sell != null && <div style={{ color: '#ef5350' }}>Venda se fechar {l.sell >= last ? 'acima de' : 'abaixo de'} {px(l.sell)}</div>}
+                          {l.buy == null && l.sell == null && l.active === 0 && <div className="muted">Sem gatilho a ±15% do preço atual</div>}
+                        </div>
+                      )}
+                    </div>);
+                })}
+                {!cards.length && <span className="muted">Sem dados suficientes de sinais.</span>}
               </aside>
             </div>
           </>
         )}
       </div>
+      {rankHelp && profile && <RankingHelpModal symbol={profile.symbol} timeframe={profile.timeframe} onClose={() => setRankHelp(false)} />}
       {helpId && <IndicatorHelpModal id={helpId} onClose={() => setHelpId(null)} />}
       {tool && profile && (
         <section className="toolpanel">

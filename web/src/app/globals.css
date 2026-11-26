@@ -58,3 +58,10 @@ button.help:hover { color:var(--fg); }
 .sughead { display:flex; align-items:center; margin-bottom:2px; }
 .sugrow { display:flex; justify-content:space-between; gap:8px; color:var(--mut); } .sugrow b { color:var(--fg); }
 .sugwarn { color:#d29922; font-size:12px; }
+/* Legenda dos sinais no gráfico */
+.legend { position:absolute; top:8px; left:8px; z-index:5; max-width:300px; background:#0d1117dd; border:1px solid var(--line); border-radius:8px; padding:4px 8px; font-size:12px; }
+.legend-head { background:transparent; border:0; padding:2px 0; color:var(--mut); font-size:12px; font-weight:600; }
+.legend ul { list-style:none; margin:4px 0 2px; padding:0; display:flex; flex-direction:column; gap:3px; }
+.legend li { line-height:1.35; } .lg-bell { filter:drop-shadow(0 0 3px #f0b429); }
+.lg-ind { color:var(--mut); } .lg-ind b { color:var(--fg); } .lg-note { color:var(--mut); font-size:11px; margin-top:2px; }
+.suglevels { margin-top:4px; padding-top:6px; border-top:1px dashed var(--line); display:flex; flex-direction:column; gap:2px; }

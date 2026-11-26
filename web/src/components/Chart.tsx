@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts';
 import { INDICATORS, INDICATOR_IDS, sma, ema, rsi, macd, bollinger, donchian, vwap, stochastic, adx, obv } from '@/lib/indicators';
 import type { Candle } from '@/lib/types';
@@ -11,6 +11,10 @@ const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i]
 export default function Chart({ candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3', liveCandle = null }: { liveCandle?: Candle | null; market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const [legendOpen, setLegendOpen] = useState(true);
+  useEffect(() => { try { setLegendOpen(localStorage.getItem('prophet_legend') !== '0'); } catch {} }, []);
+  const toggleLegend = () => { const v = !legendOpen; setLegendOpen(v); try { localStorage.setItem('prophet_legend', v ? '1' : '0'); } catch {} };
+  const active = INDICATOR_IDS.filter((id) => indicators.includes(id));
   useEffect(() => {
     if (!ref.current || !candles.length) return;
     const el = ref.current;
@@ -91,7 +95,7 @@ export default function Chart({ candles, indicators, livePrice, showSignals = tr
           position: (sg > 0 ? 'belowBar' : 'aboveBar') as 'belowBar' | 'aboveBar',
           shape: (sg > 0 ? 'arrowUp' : 'arrowDown') as 'arrowUp' | 'arrowDown',
           color: sg > 0 ? '#26a69a' : '#ef5350',
-          text: id.toUpperCase(),
+          text: `🔔 ${id.toUpperCase()}`, // sino amarelo (emoji) destaca o candle com sinal; a sigla diz qual indicador
         }]));
       main.setMarkers(marks.sort((a, b) => (a.time as number) - (b.time as number)));
     }
@@ -108,5 +112,31 @@ export default function Chart({ candles, indicators, livePrice, showSignals = tr
     if (livePrice == null) { mainRef.current.update({ ...last, time: last.time as UTCTimestamp }); return; }
     mainRef.current.update({ time: last.time as UTCTimestamp, open: last.open, high: Math.max(last.high, livePrice), low: Math.min(last.low, livePrice), close: livePrice });
   }, [livePrice, liveCandle, candles, indicators]);
-  return <div ref={ref} className="chartbox" />;
+  const mode = trades ? 'trades' : showSignals && active.length ? 'signals' : null;
+  return (
+    <>
+      <div ref={ref} className="chartbox" />
+      {mode && (
+        <div className="legend">
+          <button className="legend-head" onClick={toggleLegend} aria-expanded={legendOpen}>Legenda {legendOpen ? '▾' : '▸'}</button>
+          {legendOpen && (mode === 'signals' ? (
+            <ul>
+              <li><span className="lg-bell">🔔</span> Candle com sinal; a sigla ao lado é o indicador que o gerou</li>
+              <li><span style={{ color: '#26a69a' }}>▲</span> Seta verde, abaixo do candle: sinal de <b>compra</b></li>
+              <li><span style={{ color: '#ef5350' }}>▼</span> Seta vermelha, acima do candle: sinal de <b>venda</b></li>
+              {active.map((id) => <li key={id} className="lg-ind"><b>{id.toUpperCase()}</b> = {INDICATORS[id].label}</li>)}
+              <li className="lg-note">É a regra do indicador, não recomendação.</li>
+            </ul>
+          ) : (
+            <ul>
+              <li><span style={{ color: '#2f81f7' }}>▲</span> Seta azul: <b>entrada</b> (compra na abertura do candle seguinte)</li>
+              <li><span style={{ color: '#26a69a' }}>▼</span> Seta verde: <b>saída com ganho</b> (% da operação)</li>
+              <li><span style={{ color: '#ef5350' }}>▼</span> Seta vermelha: <b>saída com perda</b></li>
+              <li className="lg-note">“(aberta)” = operação ainda em andamento.</li>
+            </ul>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
