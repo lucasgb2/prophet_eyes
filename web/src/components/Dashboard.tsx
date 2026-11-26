@@ -46,8 +46,11 @@ export default function Dashboard() {
     if (!profile || !envReady) return;
     setErr(''); setSugg([]);
     const q = `market=${profile.market}&symbol=${profile.symbol}&tf=${profile.timeframe}${q_env}`;
-    j(`/api/candles?${q}`).then(async (r) => (r.ok ? setCandles(await r.json()) : (setCandles([]), setErr((await r.json()).error))));
-    j(`/api/suggest?${q}`).then(async (r) => r.ok && setSugg(await r.json()));
+    // Se o usuário trocar de papel/timeframe antes da resposta chegar, a resposta velha é descartada
+    let stale = false;
+    j(`/api/candles?${q}`).then(async (r) => { const body = await r.json(); if (stale) return; if (r.ok) setCandles(body); else { setCandles([]); setErr(body.error); } }).catch(() => {});
+    j(`/api/suggest?${q}`).then(async (r) => { const body = await r.json(); if (!stale && r.ok) setSugg(body); }).catch(() => {});
+    return () => { stale = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 

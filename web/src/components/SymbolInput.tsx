@@ -10,6 +10,7 @@ export default function SymbolInput({ symbol, market = 'b3', env = 'production',
   const [items, setItems] = useState<Asset[]>([]);
   const [hi, setHi] = useState(0);
   const seq = useRef(0);
+  const itemsFor = useRef<string | null>(null); // consulta a que `items` corresponde
 
   useEffect(() => setText(symbol), [symbol]);
 
@@ -20,7 +21,7 @@ export default function SymbolInput({ symbol, market = 'b3', env = 'production',
     const q = text === symbol ? '' : text.trim();
     const t = setTimeout(async () => {
       const r = await fetch(`/api/assets?market=${market}&env=${env}&q=${encodeURIComponent(q)}`);
-      if (r.ok && id === seq.current) { setItems(await r.json()); setHi(0); }
+      if (r.ok && id === seq.current) { const list = await r.json(); if (id === seq.current) { itemsFor.current = q; setItems(list); setHi(0); } }
     }, 150);
     return () => clearTimeout(t);
   }, [text, open, symbol, market, env]);
@@ -36,7 +37,12 @@ export default function SymbolInput({ symbol, market = 'b3', env = 'production',
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(h + 1, items.length - 1)); }
           else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
-          else if (e.key === 'Enter') { e.preventDefault(); pick(items[hi]?.symbol ?? text); }
+          else if (e.key === 'Enter') {
+            e.preventDefault();
+            // a lista só vale se for da consulta atual; senão (digitou e deu Enter antes da busca terminar) usa o texto digitado
+            const fresh = itemsFor.current === (text === symbol ? '' : text.trim());
+            pick((fresh ? items[hi]?.symbol : undefined) ?? text);
+          }
           else if (e.key === 'Escape') { setOpen(false); setText(symbol); }
         }} />
       {open && items.length > 0 && (
