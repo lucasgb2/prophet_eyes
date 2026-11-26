@@ -46,6 +46,9 @@ button:disabled { opacity:.35; cursor:not-allowed; }
 .indgrp > button:first-child { border-top-right-radius:0; border-bottom-right-radius:0; }
 .indgrp > button.help { border-top-left-radius:0; border-bottom-left-radius:0; border-left:0; padding:0 8px; }
 button.help { color:var(--mut); font-weight:600; }
+button.help.bell { font-size:12px; }
+.indgrp > button.bell { border-radius:0; }
+button.help.bell.on { border-color:#e3b341; background:#e3b34122; }
 button.help:hover { color:var(--fg); }
 .sug button.help, .sughead button.help { width:20px; height:20px; padding:0; border-radius:50%; font-size:12px; line-height:1; border:1px solid var(--line); background:transparent; margin-left:4px; }
 .modal-back { position:fixed; inset:0; background:#000a; display:grid; place-items:center; z-index:50; padding:16px; }

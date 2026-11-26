@@ -13,6 +13,7 @@ type Ord = { orderId: number; side: string; type: string; status: string; price:
 const j = (url: string, method = 'GET', body?: unknown) =>
   fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
 const trim = (s: string) => (s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s);
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const when = (t: number) => new Date(t * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export default function TradePanel({ ctx }: { ctx: ToolCtx }) {
@@ -20,7 +21,8 @@ export default function TradePanel({ ctx }: { ctx: ToolCtx }) {
   const [st, setSt] = useState<Status | null>(null);
   const [keys, setKeys] = useState({ apiKey: '', apiSecret: '' });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [balances, setBalances] = useState<{ asset: string; free: string; locked: string }[] | null>(null);
+  const [balances, setBalances] = useState<{ asset: string; free: string; locked: string; brl?: number | null }[] | null>(null);
+  const [totalBrl, setTotalBrl] = useState<number | null>(null);
   const [rules, setRules] = useState<{ rules: Rules; price: number } | null>(null);
   const [o, setO] = useState({ side: 'BUY', type: 'MARKET', quantity: '', price: '' });
   const [review, setReview] = useState(false);
@@ -41,7 +43,7 @@ export default function TradePanel({ ctx }: { ctx: ToolCtx }) {
     setBalances(null);
     if (!conn?.configured) return;
     const r = await j(`/api/trade/account?env=${env}`); const b = await r.json();
-    if (r.ok) setBalances(b.balances); else setMsg({ ok: false, text: b.error });
+    if (r.ok) { setBalances(b.balances); setTotalBrl(b.totalBrl ?? null); } else setMsg({ ok: false, text: b.error });
   }, [env, conn?.configured]);
   const loadOrders = useCallback(async () => {
     setOrders(null);
@@ -116,7 +118,10 @@ export default function TradePanel({ ctx }: { ctx: ToolCtx }) {
             {!balances ? <span className="muted">Carregando…</span> : !balances.length ? <span className="muted">Sem saldo.</span> : (
               <table><tbody>{balances.map((b) => (
                 <tr key={b.asset} style={b.asset === pair.base || b.asset === pair.quote ? { background: '#222a34' } : undefined}>
-                  <td><b>{b.asset}</b></td><td>{trim(b.free)}</td><td className="muted">{Number(b.locked) > 0 ? `+${trim(b.locked)} em ordens` : ''}</td></tr>))}</tbody></table>)}
+                  <td><b>{b.asset}</b></td><td>{trim(b.free)}</td><td className="muted">{Number(b.locked) > 0 ? `+${trim(b.locked)} em ordens` : ''}</td>
+                  <td style={{ textAlign: 'right' }}>{b.brl != null ? brl(b.brl) : <span className="muted">—</span>}</td></tr>))}
+                {totalBrl != null && <tr><td colSpan={3}><b>Total estimado</b></td><td style={{ textAlign: 'right' }}><b>{brl(totalBrl)}</b></td></tr>}</tbody></table>)}
+            <p className="muted">Valores em reais estimados pelo preço atual da Binance (ativo → BRL, ou via USDT/BTC). Inclui o que está em ordens abertas.</p>
           </section>
 
           <section>

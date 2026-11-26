@@ -24,6 +24,7 @@ Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `q
 - **Auth própria simples**: e-mail + senha (bcrypt), sessão em cookie JWT httpOnly de 7 dias, middleware bloqueia tudo sem login. Cadastro controlado por `ALLOW_REGISTRATION` (desligue depois de criar as contas).
 - **Perfis = abas**: tabela `profiles` por usuário (ativo, timeframe, indicadores escolhidos), editadas direto na UI.
 - **Alertas**: tabela `alerts` por usuário + `telegram_chat_id`; o worker avalia a cada 60 s e envia pelo bot, com intervalo mínimo de 1 h entre disparos do mesmo alerta.
+- **Sinos de indicadores**: `users.signal_bells` guarda os indicadores com sino ligado (`/api/notify`). O navegador avisa (notificação + som) para a aba ativa; o worker, a cada 60 s, confere o último candle de todas as abas do usuário e avisa pelo Telegram. Um sinal (indicador + candle + direção) avisa uma vez só — `signal_sent` guarda o que já foi enviado (limpo após 30 dias) e o registro é desfeito se o envio falhar. Candles velhos demais para o timeframe (`MAX_AGE_S` em `lib/signal-watch.ts`) não geram aviso.
 - **Sugestão de indicadores**: ranking empírico por ativo/timeframe — retorno 5 candles após cada sinal, taxa de acerto e penalidade para amostras pequenas. Descreve o passado; não é recomendação de investimento.
 - **Dados**: brapi.dev para candles (limite de range por intervalo intradiário). BCB SGS (Selic, câmbio, IPCA) na fase 2. Tabela `candles` (hypertable do TimescaleDB) usada como cache de histórico (ver rodada 2).
 

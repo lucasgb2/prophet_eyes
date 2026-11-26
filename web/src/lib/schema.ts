@@ -26,6 +26,11 @@ async function run() {
         symbol TEXT PRIMARY KEY, name TEXT NOT NULL);
       ALTER TABLE profiles ADD COLUMN IF NOT EXISTS market TEXT NOT NULL DEFAULT 'b3';
       ALTER TABLE alerts ADD COLUMN IF NOT EXISTS market TEXT NOT NULL DEFAULT 'b3';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS signal_bells JSONB NOT NULL DEFAULT '[]';
+      CREATE TABLE IF NOT EXISTS signal_sent (
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        key TEXT NOT NULL, sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, key));
       CREATE TABLE IF NOT EXISTS exchange_credentials (
         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         exchange TEXT NOT NULL, env TEXT NOT NULL,

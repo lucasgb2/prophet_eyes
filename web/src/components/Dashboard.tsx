@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import Chart from './Chart';
+import Chart, { type ChartOrder } from './Chart';
 import SymbolInput from './SymbolInput';
 import { TOOLS } from './tools/registry';
 import IndicatorHelpModal from './IndicatorHelpModal';
 import RankingHelpModal from './RankingHelpModal';
+import { useSignalNotifier } from './useSignalNotifier';
 import { useBinanceEnv } from './useBinanceEnv';
 import { useBinanceStream } from './useBinanceStream';
 import { MARKET_IDS, MARKETS, fmtPrice, type MarketId } from '@/lib/markets';
@@ -40,6 +41,7 @@ export default function Dashboard() {
   const [binEnv, , envReady] = useBinanceEnv();
   const dataEnv = profile?.market === 'binance' ? binEnv : 'production'; // B3 não tem ambiente de teste
   const q_env = `&env=${dataEnv}`;
+  const notifier = useSignalNotifier(profile, dataEnv, envReady);
   const tools = TOOLS.filter((t) => !t.markets || (profile && t.markets.includes(profile.market)));
   const tool = tools.find((t) => t.id === toolId);
 
@@ -81,6 +83,25 @@ export default function Dashboard() {
     const id = setInterval(tick, MARKETS[market].quoteEveryMs);
     return () => { stop = true; clearInterval(id); };
   }, [live, symbol, market, viaWs, dataEnv, envReady]);
+  // Binance: ordens abertas do usuário no ambiente selecionado, desenhadas como linhas de preço no gráfico
+  const [openOrders, setOpenOrders] = useState<ChartOrder[]>([]);
+  const [ordersErr, setOrdersErr] = useState('');
+  useEffect(() => {
+    setOpenOrders([]); setOrdersErr('');
+    if (market !== 'binance' || !symbol || !envReady) return;
+    let stop = false, id: ReturnType<typeof setInterval> | undefined;
+    const load = async () => {
+      const r = await j(`/api/trade/orders?env=${dataEnv}&symbol=${symbol}`).catch(() => null);
+      if (stop || !r) return;
+      if (r.status === 404) { clearInterval(id); return; } // sem chaves neste ambiente: não insiste
+      const b = await r.json().catch(() => ({}));
+      if (stop) return;
+      if (!r.ok) { setOrdersErr(b.error ?? `erro ${r.status}`); return; }
+      setOrdersErr(''); setOpenOrders(b.open ?? []);
+    };
+    load(); id = setInterval(load, 15_000);
+    return () => { stop = true; clearInterval(id); };
+  }, [market, symbol, dataEnv, envReady]);
   const shown: Quote | null = viaWs ? { price: stream.price!, changePct: stream.changePct } : quote;
 
   // Aba B3 num timeframe que o plano não permite (salva antes, ou depois de aprender o limite): volta para o primeiro liberado
@@ -132,6 +153,7 @@ export default function Dashboard() {
               {profile.market === 'binance' && <span className={`envtag ${binEnv}`} title={binEnv === 'production' ? 'Ordens usam dinheiro real (muda no painel Operar)' : 'Ambiente de teste: sem dinheiro real (muda no painel Operar)'}>{binEnv === 'production' ? 'Produção' : 'Homologação'}</span>}
               <button className={live ? 'on' : ''} onClick={toggleLive} title={profile.market === 'b3' ? 'Cotação em tempo quase real via yfinance' : 'Preço e candle ao vivo por websocket da Binance (cai para consulta a cada 5 s se desconectar)'}>Preço real</button>
               {live && shown && <span><b>{fmtPrice(profile.market, profile.symbol, shown.price)}</b>{shown.changePct != null && <span style={{ color: shown.changePct >= 0 ? '#26a69a' : '#ef5350' }}> {shown.changePct >= 0 ? '+' : ''}{shown.changePct.toFixed(2)}%</span>}{viaWs && <span className="muted" title="Websocket da Binance conectado"> ●</span>}</span>}
+              {ordersErr && <span className="muted" style={{ color: '#f85149' }} title={ordersErr}>ordens indisponíveis: {ordersErr.slice(0, 70)}</span>}
               {live && !viaWs && quoteErr && <span className="muted" title={quoteErr}>cotação indisponível</span>}
               <button onClick={async () => { await j(`/api/profiles?id=${profile.id}`, 'DELETE'); const rest = profiles.filter((p) => p.id !== profile.id); setProfiles(rest); setActiveId(rest[0]?.id ?? null); }}>Excluir aba</button>
             </div>
@@ -142,12 +164,15 @@ export default function Dashboard() {
               {INDICATOR_IDS.map((id) => (
                 <span className="indgrp" key={id}>
                   <button className={profile.indicators.includes(id) ? 'on' : ''} onClick={() => toggle(id)}>{INDICATORS[id].label}</button>
+                  <button className={`help bell${notifier.on.includes(id) ? ' on' : ''}`} aria-pressed={notifier.on.includes(id)} aria-label={`Avisar sinais de ${INDICATORS[id].label}`} title={notifier.on.includes(id) ? 'Avisando sinais deste indicador (clique para desligar)' : 'Avisar no navegador, com som, quando este indicador der sinal'} onClick={() => notifier.toggle(id)}>{notifier.on.includes(id) ? '🔔' : '🔕'}</button>
                   <button className="help" aria-label={`Como funciona: ${INDICATORS[id].label}`} title="Como funciona" onClick={() => setHelpId(id)}>?</button>
                 </span>))}
+              {notifier.note && <span className="muted">{notifier.note}</span>}
+              {notifier.on.length > 0 && <span className="muted">{notifier.telegram ? 'Sinos ligados: avisa também pelo Telegram, mesmo com o app fechado (todas as suas abas).' : 'Sinos ligados: cadastre seu chat no painel Telegram para receber também lá.'}</span>}
             </div>
             <div className="workspace">
               <div className="panel chartcol">
-                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? shown?.price : null} liveCandle={live && viaWs ? stream.candle : null} showSignals={signals} trades={trades} />}
+                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? shown?.price : null} liveCandle={live && viaWs ? stream.candle : null} showSignals={signals} trades={trades} orders={openOrders} />}
               </div>
               <aside className="panel suggest">
                 <div className="sughead"><b>Indicadores sugeridos</b><button className="help" aria-label="Como ler os indicadores sugeridos" title="Como ler os indicadores sugeridos" onClick={() => setRankHelp(true)}>?</button></div>

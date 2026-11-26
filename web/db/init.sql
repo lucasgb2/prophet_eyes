@@ -5,6 +5,7 @@ CREATE TABLE users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   telegram_chat_id TEXT,
+  signal_bells JSONB NOT NULL DEFAULT '[]',   -- indicadores com sino ligado (aviso no navegador e no Telegram)
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -43,3 +44,11 @@ CREATE TABLE candles (
   PRIMARY KEY (symbol, timeframe, ts)
 );
 SELECT create_hypertable('candles', 'ts');
+
+-- Sinais já avisados (evita repetir o mesmo sinal: indicador + candle + direção)
+CREATE TABLE signal_sent (
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, key)
+);

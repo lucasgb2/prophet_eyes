@@ -57,6 +57,21 @@ export async function ticker24h(symbol: string, env: Env = 'production') {
   return { symbol, price: +t.lastPrice, previousClose: +t.prevClosePrice, changePct: +t.priceChangePercent, source: 'binance', fetchedAt: Math.floor(Date.now() / 1000) };
 }
 
+/** Valor em reais de cada ativo (via par BRL, USDT ou BTC); null quando não há como converter. Uma só chamada de preços. */
+export async function brlValues(assets: string[], env: Env = 'production'): Promise<Record<string, number | null>> {
+  const rows: { symbol: string; price: string }[] = await get(dataBase(env), '/api/v3/ticker/price');
+  const px = new Map(rows.map((r) => [r.symbol, +r.price]));
+  const usdt = px.get('USDTBRL'), btc = px.get('BTCBRL');
+  const one = (a: string): number | null => {
+    if (a === 'BRL') return 1;
+    const d = px.get(`${a}BRL`); if (d) return d;
+    if (usdt) { if (['USDT', 'USDC', 'FDUSD', 'BUSD', 'TUSD'].includes(a)) return usdt; const u = px.get(`${a}USDT`); if (u) return u * usdt; }
+    if (btc) { const b = px.get(`${a}BTC`); if (b) return b * btc; }
+    return null;
+  };
+  return Object.fromEntries(assets.map((a) => [a, one(a)]));
+}
+
 const symbolsCache: Partial<Record<Env, { at: number; list: string[] }>> = {};
 async function allSymbols(env: Env): Promise<string[]> {
   const hit = symbolsCache[env];
@@ -183,7 +198,7 @@ export async function sendOrder(env: Env, c: Creds, o: PreparedOrder, testOnly: 
   return testOnly ? { test: true } : { orderId: r.orderId, status: r.status, executedQty: r.executedQty, cummulativeQuoteQty: r.cummulativeQuoteQty, price: r.price };
 }
 
-const slim = (o: any) => ({ orderId: o.orderId, symbol: o.symbol, side: o.side, type: o.type, status: o.status, price: o.price, origQty: o.origQty, executedQty: o.executedQty, time: Math.floor((o.time ?? o.transactTime ?? 0) / 1000) });
+const slim = (o: any) => ({ orderId: o.orderId, symbol: o.symbol, side: o.side, type: o.type, status: o.status, price: o.price, origQty: o.origQty, executedQty: o.executedQty, stopPrice: o.stopPrice ?? '0', time: Math.floor((o.time ?? o.transactTime ?? 0) / 1000) });
 export const openOrders = async (env: Env, c: Creds, symbol: string) => (await signed(env, c, 'GET', '/api/v3/openOrders', { symbol })).map(slim);
 export const recentOrders = async (env: Env, c: Creds, symbol: string) => (await signed(env, c, 'GET', '/api/v3/allOrders', { symbol, limit: 15 })).map(slim).reverse();
 export const cancelOrder = (env: Env, c: Creds, symbol: string, orderId: number) => signed(env, c, 'DELETE', '/api/v3/order', { symbol, orderId });

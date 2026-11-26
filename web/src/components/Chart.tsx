@@ -8,7 +8,9 @@ import { pricePrecision, type MarketId } from '@/lib/markets';
 
 const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i] == null ? [] : [{ time: time as UTCTimestamp, value: s[i]! }]));
 
-export default function Chart({ candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3', liveCandle = null }: { liveCandle?: Candle | null; market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
+export type ChartOrder = { orderId: number; side: string; type: string; price: string; stopPrice?: string; origQty: string; executedQty: string };
+
+export default function Chart({ orders = [], candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3', liveCandle = null }: { orders?: ChartOrder[]; liveCandle?: Candle | null; market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const [legendOpen, setLegendOpen] = useState(true);
@@ -112,6 +114,19 @@ export default function Chart({ candles, indicators, livePrice, showSignals = tr
     if (livePrice == null) { mainRef.current.update({ ...last, time: last.time as UTCTimestamp }); return; }
     mainRef.current.update({ time: last.time as UTCTimestamp, open: last.open, high: Math.max(last.high, livePrice), low: Math.min(last.low, livePrice), close: livePrice });
   }, [livePrice, liveCandle, candles, indicators]);
+  // Ordens abertas (Binance): uma linha de preço por ordem; recriada quando o gráfico é refeito
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const lines = orders.flatMap((o) => {
+      const price = Number(o.price) > 0 ? Number(o.price) : Number(o.stopPrice);
+      if (!(price > 0)) return [];
+      const buy = o.side === 'BUY', qty = Number(o.origQty), done = Number(o.executedQty);
+      const kind = o.type.startsWith('STOP') ? (buy ? 'Stop compra' : 'Stop venda') : buy ? 'Compra' : 'Venda';
+      return [main.createPriceLine({ price, color: buy ? '#26a69a' : '#ef5350', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: `${kind} ${qty}${done > 0 ? ` (${done} exec.)` : ''}` })];
+    });
+    return () => { for (const l of lines) { try { main.removePriceLine(l); } catch {} } };
+  }, [orders, candles, indicators, showSignals, trades, market]);
   const mode = trades ? 'trades' : showSignals && active.length ? 'signals' : null;
   return (
     <>
