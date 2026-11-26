@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Chart from './Chart';
 import SymbolInput from './SymbolInput';
 import { TOOLS } from './tools/registry';
+import IndicatorHelpModal from './IndicatorHelpModal';
 import { useBinanceEnv } from './useBinanceEnv';
 import { useBinanceStream } from './useBinanceStream';
 import { MARKET_IDS, MARKETS, fmtPrice, type MarketId } from '@/lib/markets';
@@ -27,6 +28,10 @@ export default function Dashboard() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteErr, setQuoteErr] = useState('');
   const [trades, setTrades] = useState<Trade[] | null>(null);
+  const [helpId, setHelpId] = useState<IndicatorId | null>(null); // indicador cuja explicação está aberta
+  const [planB3, setPlanB3] = useState<string[] | null>(null);
+  const [freeB3, setFreeB3] = useState<string[]>([]); // papéis de teste da brapi, sem limite de timeframe
+  const blocked = (tf: string, p: { market: string; symbol: string }) => p.market === 'b3' && planB3 != null && !planB3.includes(tf) && !freeB3.includes(p.symbol); // timeframes liberados no plano da brapi (null = sem restrição conhecida)
   const [signals, setSignals] = useState(true);
   const [toolId, setToolId] = useState<string | null>(null);
   const profile = profiles.find((p) => p.id === activeId);
@@ -38,6 +43,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     j('/api/profiles').then((r) => r.json()).then((ps: Profile[]) => { setProfiles(ps); setActiveId(ps[0]?.id ?? null); });
+    j('/api/plan').then((r) => r.json()).then((b) => { setPlanB3(Array.isArray(b.b3) ? b.b3 : null); setFreeB3(Array.isArray(b.free) ? b.free : []); }).catch(() => {});
     try { setLive(localStorage.getItem('prophet_live') === '1'); setSignals(localStorage.getItem('prophet_signals') !== '0'); } catch {}
   }, []);
 
@@ -75,6 +81,11 @@ export default function Dashboard() {
   }, [live, symbol, market, viaWs, dataEnv, envReady]);
   const shown: Quote | null = viaWs ? { price: stream.price!, changePct: stream.changePct } : quote;
 
+  // Aba B3 num timeframe que o plano não permite (salva antes, ou depois de aprender o limite): volta para o primeiro liberado
+  useEffect(() => {
+    if (profile && blocked(profile.timeframe, profile)) { const ok = TIMEFRAMES.find((t) => !blocked(t, profile)); if (ok) update({ timeframe: ok }); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planB3, freeB3, profile?.market, profile?.symbol, profile?.timeframe]);
   const toggleSignals = () => { const v = !signals; setSignals(v); try { localStorage.setItem('prophet_signals', v ? '1' : '0'); } catch {} };
   const levels = useMemo(() => (candles.length && profile ? triggerLevels(candles, profile.indicators.filter((i) => i in INDICATORS) as IndicatorId[]) : []), [candles, profile?.indicators]);
   const px = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -107,7 +118,7 @@ export default function Dashboard() {
                 {MARKET_IDS.map((m) => <option key={m} value={m}>{MARKETS[m].label}</option>)}
               </select>
               <SymbolInput symbol={profile.symbol} market={profile.market} env={dataEnv} onSelect={(s) => update({ symbol: s })} />
-              {TIMEFRAMES.map((t) => <button key={t} className={t === profile.timeframe ? 'on' : ''} onClick={() => update({ timeframe: t })}>{t}</button>)}
+              {TIMEFRAMES.map((t) => { const off = blocked(t, profile); return <button key={t} className={t === profile.timeframe ? 'on' : ''} disabled={off} title={off ? `Indisponível para ${profile.symbol} no seu plano da brapi (permitidos: ${planB3!.join(', ')})` : undefined} onClick={() => update({ timeframe: t })}>{t}</button>; })}
               <span className="grow" />
               {profile.market === 'binance' && <span className={`envtag ${binEnv}`} title={binEnv === 'production' ? 'Ordens usam dinheiro real (muda no painel Operar)' : 'Ambiente de teste: sem dinheiro real (muda no painel Operar)'}>{binEnv === 'production' ? 'Produção' : 'Homologação'}</span>}
               <button className={live ? 'on' : ''} onClick={toggleLive} title={profile.market === 'b3' ? 'Cotação em tempo quase real via yfinance' : 'Preço e candle ao vivo por websocket da Binance (cai para consulta a cada 5 s se desconectar)'}>Preço real</button>
@@ -119,7 +130,11 @@ export default function Dashboard() {
               <span className="muted">Indicadores:</span>
               <button className={signals ? 'on' : ''} onClick={toggleSignals} title="Setas de compra/venda no gráfico para os indicadores ligados">Sinais no gráfico</button>
               <span className="muted">|</span>
-              {INDICATOR_IDS.map((id) => <button key={id} className={profile.indicators.includes(id) ? 'on' : ''} onClick={() => toggle(id)}>{INDICATORS[id].label}</button>)}
+              {INDICATOR_IDS.map((id) => (
+                <span className="indgrp" key={id}>
+                  <button className={profile.indicators.includes(id) ? 'on' : ''} onClick={() => toggle(id)}>{INDICATORS[id].label}</button>
+                  <button className="help" aria-label={`Como funciona: ${INDICATORS[id].label}`} title="Como funciona" onClick={() => setHelpId(id)}>?</button>
+                </span>))}
             </div>
             <div className="workspace">
               <div className="panel chartcol">
@@ -131,7 +146,7 @@ export default function Dashboard() {
                 {levels.map((l) => (
                   <div className="sug" key={l.id}>
                     <div>
-                      <b>{l.label}</b>
+                      <b>{l.label}</b> <button className="help" aria-label={`Como funciona: ${l.label}`} title="Como funciona" onClick={() => setHelpId(l.id)}>?</button>
                       <div className="muted">
                         {l.active !== 0 && <span style={{ color: l.active > 0 ? '#26a69a' : '#ef5350' }}>sinal de {l.active > 0 ? 'compra' : 'venda'} agora · </span>}
                         {l.buy != null && <span style={{ color: '#26a69a' }}>compra se fechar {l.buy >= candles.at(-1)!.close ? 'acima de' : 'abaixo de'} {px(l.buy)}</span>}
@@ -145,10 +160,21 @@ export default function Dashboard() {
                 <b style={{ marginTop: 14, display: 'block' }}>Indicadores sugeridos</b>
                 <p className="muted">{profile.symbol} · {profile.timeframe}. Ranking histórico: retorno em 3, 5 e 10 candles após cada sinal, já descontado 0,1% de custo por operação. Descreve o passado; não é recomendação.</p>
                 {sugg.map((s) => (
-                  <div className="sug" key={s.id}>
-                    <div><b>{s.label}</b><div className="muted">{s.signals} sinais · acerto {(s.hitRate * 100).toFixed(0)}% · ret. líq. {s.avgReturnPct.toFixed(2)}%</div>
-                    {s.hitFirst != null && s.hitSecond != null && <div className="muted" style={{ color: s.stable ? undefined : '#d29922' }}>1ª metade {(s.hitFirst * 100).toFixed(0)}% · 2ª metade {(s.hitSecond * 100).toFixed(0)}%{s.stable ? '' : ' — instável'}</div>}</div>
-                    <button disabled={profile.indicators.includes(s.id)} onClick={() => toggle(s.id)}>{profile.indicators.includes(s.id) ? 'Em uso' : 'Aplicar'}</button>
+                  <div className="sugcard" key={s.id}>
+                    <div className="sughead">
+                      <b>{s.label}</b>
+                      <button className="help" aria-label={`Como funciona: ${s.label}`} title="Como funciona" onClick={() => setHelpId(s.id)}>?</button>
+                      <span className="grow" />
+                      <button disabled={profile.indicators.includes(s.id)} onClick={() => toggle(s.id)}>{profile.indicators.includes(s.id) ? 'Em uso' : 'Aplicar'}</button>
+                    </div>
+                    <div className="sugrow"><span>Sinais: <b>{s.signals}</b></span><span>Acerto: <b>{(s.hitRate * 100).toFixed(0)}%</b></span></div>
+                    <div className="sugrow"><span>Ret. líq.: <b style={{ color: s.avgReturnPct >= 0 ? '#26a69a' : '#ef5350' }}>{s.avgReturnPct.toFixed(2)}%</b></span></div>
+                    {s.hitFirst != null && s.hitSecond != null && (
+                      <>
+                        <div className="sugrow"><span>1ª metade <b>{(s.hitFirst * 100).toFixed(0)}%</b></span><span>2ª metade <b>{(s.hitSecond * 100).toFixed(0)}%</b></span></div>
+                        {!s.stable && <div className="sugwarn">Resultado instável entre as duas metades</div>}
+                      </>
+                    )}
                   </div>))}
                 {!sugg.length && <span className="muted">Sem dados suficientes de sinais.</span>}
               </aside>
@@ -156,6 +182,7 @@ export default function Dashboard() {
           </>
         )}
       </div>
+      {helpId && <IndicatorHelpModal id={helpId} onClose={() => setHelpId(null)} />}
       {tool && profile && (
         <section className="toolpanel">
           <header><b>{tool.title}</b><button aria-label="Fechar" onClick={() => setToolId(null)}>×</button></header>

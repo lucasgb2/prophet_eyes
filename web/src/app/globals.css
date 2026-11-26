@@ -40,3 +40,21 @@ button.danger { background:#da3633; border-color:#da3633; color:#fff; } button.b
 .toolbody input { width:100%; } .toolbody .row input { width:auto; min-width:0; } .toolbody input[type=checkbox] { width:auto; }
 .envtag { padding:3px 8px; border-radius:10px; font-size:12px; font-weight:600; border:1px solid var(--line); }
 .envtag.testnet { color:#d29922; border-color:#d29922; } .envtag.production { color:#fff; background:#da3633; border-color:#da3633; }
+button:disabled { opacity:.35; cursor:not-allowed; }
+/* Ajuda dos indicadores */
+.indgrp { display:inline-flex; align-items:stretch; }
+.indgrp > button:first-child { border-top-right-radius:0; border-bottom-right-radius:0; }
+.indgrp > button.help { border-top-left-radius:0; border-bottom-left-radius:0; border-left:0; padding:0 8px; }
+button.help { color:var(--mut); font-weight:600; }
+button.help:hover { color:var(--fg); }
+.sug button.help, .sughead button.help { width:20px; height:20px; padding:0; border-radius:50%; font-size:12px; line-height:1; border:1px solid var(--line); background:transparent; margin-left:4px; }
+.modal-back { position:fixed; inset:0; background:#000a; display:grid; place-items:center; z-index:50; padding:16px; }
+.modal { width:min(520px,100%); max-height:85vh; overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 20px; }
+.modal header { display:flex; justify-content:space-between; align-items:center; font-size:16px; }
+.modal h4 { margin:14px 0 4px; color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.modal p { margin:0; line-height:1.5; } .modal p.small { margin-top:16px; font-size:12px; }
+/* Cartão de indicador sugerido */
+.sugcard { border-top:1px solid var(--line); padding:10px 0; display:flex; flex-direction:column; gap:4px; }
+.sughead { display:flex; align-items:center; margin-bottom:2px; }
+.sugrow { display:flex; justify-content:space-between; gap:8px; color:var(--mut); } .sugrow b { color:var(--fg); }
+.sugwarn { color:#d29922; font-size:12px; }

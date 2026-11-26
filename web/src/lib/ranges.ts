@@ -24,12 +24,22 @@ export function pickRange(tf: Timeframe, lastCachedSec: number | null, nowSec = 
 }
 
 // ---- Limites do plano da brapi ----
+/** Papéis de teste da brapi: funcionam em qualquer intervalo, mesmo sem plano pago. Os demais seguem o limite do plano. */
+export const FREE_TICKERS = ['PETR4', 'VALE3', 'MGLU3', 'ITUB4'];
+
 const ORDER = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'max'];
 
 /** Lê "Ranges permitidos: 1d, 5d, 1mo, 3mo." da mensagem de erro da brapi (ou de BRAPI_RANGES="1d,5d,1mo,3mo"). */
 export function parseAllowedRanges(text: string): string[] | null {
   const m = /Ranges? permitidos?:\s*([^.\n]+)/i.exec(text) ?? /^([0-9a-z, ]+)$/i.exec(text.trim());
   const list = (m?.[1] ?? '').split(',').map((x) => x.trim()).filter((x) => ORDER.includes(x));
+  return list.length ? list : null;
+}
+
+/** Lê "Intervalos permitidos: 1d." da mensagem de erro da brapi (ou de BRAPI_INTERVALS="1d"). Null se não reconhecer. */
+export function parseAllowedIntervals(text: string): string[] | null {
+  const m = /Intervalos? permitidos?:\s*([^.\n]+)/i.exec(text) ?? /^([0-9a-z, ]+)$/i.exec(text.trim());
+  const list = (m?.[1] ?? '').split(',').map((x) => x.trim()).filter((x) => x in INITIAL_RANGE);
   return list.length ? list : null;
 }
 

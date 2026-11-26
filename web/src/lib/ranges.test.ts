@@ -9,7 +9,7 @@ test('cache de 3 semanas busca 1mo', () => assert.equal(pickRange('1d', now - 21
 test('gap maior que o máximo do intraday volta à janela inicial', () => assert.equal(pickRange('5m', now - 20 * 86400, now), '5d'));
 test('semanal respeita o mínimo de 3mo', () => assert.equal(pickRange('1wk', now - 86400, now), '3mo'));
 test('1m usa janela de 5d', () => assert.equal(pickRange('1m', null, now), '5d'));
-import { clampRange, parseAllowedRanges } from './ranges';
+import { clampRange, parseAllowedIntervals, parseAllowedRanges } from './ranges';
 const free = ['1d', '5d', '1mo', '3mo'];
 test('lê os ranges da mensagem da brapi', () =>
   assert.deepEqual(parseAllowedRanges('O range "1y" não está disponível no seu plano. Ranges permitidos: 1d, 5d, 1mo, 3mo. Faça upgrade'), free));
@@ -23,4 +23,10 @@ test('lacuna: fim de semana não conta, buraco de semanas sim', () => {
   assert.equal(firstGapStart([0, D, 2 * D, 5 * D, 6 * D], '1d'), null);
   assert.equal(firstGapStart([0, D, 2 * D, 20 * D, 21 * D], '1d'), 2 * D);
   assert.equal(firstGapStart([0, 7 * D, 14 * D], '1wk'), null);
+});
+
+test('lê os intervalos permitidos da mensagem da brapi', () => {
+  assert.deepEqual(parseAllowedIntervals('O intervalo "1m" não está disponível no seu plano. Intervalos permitidos: 1d. Faça upgrade para o plano Startup (R$ 119,99/mês) para usar este intervalo.'), ['1d']);
+  assert.deepEqual(parseAllowedIntervals('1d,1wk,1mo'), ['1d', '1wk', '1mo']);
+  assert.equal(parseAllowedIntervals('erro qualquer'), null);
 });

@@ -93,3 +93,7 @@ Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `q
 ### Ambiente também nos dados (Binance)
 
 O ambiente escolhido (homologação/produção) vale para os dados do gráfico, não só para as ordens: em homologação, candles, cotação, busca de pares, regras do par e websocket vêm da testnet (`testnet.binance.vision`, `stream.testnet.binance.vision`); em produção, do mercado real. As rotas recebem `env`; o cache usa chaves separadas (`BINANCE:BTCUSDT` e `BINANCE-TEST:BTCUSDT`) para não misturar históricos. A testnet tem histórico curto (ex.: ~50 candles diários) e movimento próprio. O worker (alertas e sincronização de histórico) usa sempre produção. Variáveis opcionais: `BINANCE_TESTNET_URL`, `NEXT_PUBLIC_BINANCE_TESTNET_WS_URL`.
+
+### Timeframes liberados pelo plano da brapi
+
+O plano gratuito da brapi só aceita o intervalo `1d` (e ranges até 3 meses) para a maioria dos papéis; PETR4, VALE3, MGLU3 e ITUB4 (papéis de teste) não têm limite. O servidor descobre os intervalos permitidos por `BRAPI_INTERVALS`, pela mensagem de erro (400) ou por uma sondagem única com PETR3 (`/api/plan`). A tela desativa os botões de timeframe bloqueados nas abas B3 (exceto nos papéis de teste) e, se a aba estiver num timeframe bloqueado, volta para o primeiro liberado. O servidor também recusa localmente os timeframes bloqueados, sem gastar requisição.
