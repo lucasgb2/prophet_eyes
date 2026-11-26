@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ToolCtx } from './registry';
 
-type Alert = { id: number; symbol: string; timeframe: string; kind: string; value: number };
+type Alert = { id: number; market?: string; symbol: string; timeframe: string; kind: string; value: number };
 const j = (url: string, method = 'GET', body?: unknown) =>
   fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
 
@@ -35,7 +35,7 @@ export default function TelegramPanel({ ctx }: { ctx: ToolCtx }) {
           </select>
           <input type="number" step="any" placeholder="valor" value={newAlert.value} onChange={(e) => setNewAlert({ ...newAlert, value: e.target.value })} style={{ width: 90 }} />
         </div>
-        <button disabled={!newAlert.value} onClick={async () => { await j('/api/alerts', 'POST', { ...newAlert, symbol: ctx.symbol, timeframe: ctx.timeframe }); setNewAlert({ ...newAlert, value: '' }); load(); }}>
+        <button disabled={!newAlert.value} onClick={async () => { await j('/api/alerts', 'POST', { ...newAlert, market: ctx.market, symbol: ctx.symbol, timeframe: ctx.timeframe }); setNewAlert({ ...newAlert, value: '' }); load(); }}>
           Criar alerta
         </button>
       </section>
@@ -43,7 +43,7 @@ export default function TelegramPanel({ ctx }: { ctx: ToolCtx }) {
         <h4>Meus alertas</h4>
         {!alerts.length && <span className="muted">Nenhum alerta ainda.</span>}
         <table><tbody>{alerts.map((a) => (
-          <tr key={a.id}><td>{a.symbol} {a.timeframe}</td><td>{a.kind.replace('_', ' ')} {a.value}</td>
+          <tr key={a.id}><td>{a.symbol} {a.timeframe}{a.market && a.market !== 'b3' ? ` · ${a.market}` : ''}</td><td>{a.kind.replace('_', ' ')} {a.value}</td>
             <td><button onClick={async () => { await j(`/api/alerts?id=${a.id}`, 'DELETE'); load(); }}>×</button></td></tr>))}</tbody></table>
       </section>
     </div>

@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { MARKETS, validSymbol, type MarketId } from '@/lib/markets';
 
 type Asset = { symbol: string; name: string };
 
-export default function SymbolInput({ symbol, onSelect }: { symbol: string; onSelect: (s: string) => void }) {
+export default function SymbolInput({ symbol, market = 'b3', onSelect }: { symbol: string; market?: MarketId; onSelect: (s: string) => void }) {
   const [text, setText] = useState(symbol);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Asset[]>([]);
@@ -18,17 +19,17 @@ export default function SymbolInput({ symbol, onSelect }: { symbol: string; onSe
     const id = ++seq.current;
     const q = text === symbol ? '' : text.trim();
     const t = setTimeout(async () => {
-      const r = await fetch(`/api/assets?q=${encodeURIComponent(q)}`);
+      const r = await fetch(`/api/assets?market=${market}&q=${encodeURIComponent(q)}`);
       if (r.ok && id === seq.current) { setItems(await r.json()); setHi(0); }
     }, 150);
     return () => clearTimeout(t);
-  }, [text, open, symbol]);
+  }, [text, open, symbol, market]);
 
-  const pick = (s: string) => { const v = s.toUpperCase(); setOpen(false); if (/^[A-Z0-9]{4,8}$/.test(v)) onSelect(v); else setText(symbol); };
+  const pick = (s: string) => { const v = s.toUpperCase(); setOpen(false); if (validSymbol(market, v)) onSelect(v); else setText(symbol); };
 
   return (
     <div className="combo">
-      <input value={text} placeholder="Código ou empresa" aria-label="Ativo" style={{ width: 150 }} autoComplete="off"
+      <input value={text} placeholder={MARKETS[market].placeholder} aria-label="Ativo" style={{ width: 150 }} autoComplete="off"
         onFocus={(e) => { e.target.select(); setOpen(true); }}
         onBlur={() => setTimeout(() => { setOpen(false); setText(symbol); }, 120)}
         onChange={(e) => { setText(e.target.value); setOpen(true); }}

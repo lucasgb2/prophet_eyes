@@ -76,3 +76,16 @@ Um repositório, serviços de aplicação no Docker Compose (`web`, `worker`, `q
 - **Métricas**: nº de operações, acerto, retorno médio, ganho/perda média, fator de lucro, retorno composto, comparação com comprar e segurar, maior queda do capital, exposição e o mesmo recorte nas duas metades do histórico.
 - **UI**: ferramenta "Simulação de operações" na barra lateral (`components/tools/SimulationPanel.tsx`). Enquanto o painel está aberto, o gráfico mostra as entradas e as saídas com o resultado de cada operação no lugar das setas dos indicadores. Roda no navegador sobre os candles carregados.
 - **Cuidados**: com poucas operações o resultado não diz nada (o painel avisa abaixo de 10); testar vários indicadores no mesmo histórico favorece o que deu sorte. Ainda não há simulação ao vivo (paper trading) nem short.
+
+## Atualizações (rodada 7): vários mercados e operações na Binance
+- **Mercados** (`lib/markets.ts`): cada aba tem um mercado (`profiles.market`, `alerts.market`): `b3` ou `binance`. O seletor fica na barra da aba; trocar de mercado troca o ativo para o padrão do mercado (PETR4 / BTCUSDT). Para acrescentar outro mercado: id em `markets.ts`, dados em `lib/<mercado>.ts` e os ramos em `lib/candles.ts`, `api/quote` e `api/assets`. Ferramentas da barra lateral podem se restringir a mercados (`Tool.markets`).
+- **Dados da Binance** (`lib/binance.ts`): candles de `data-api.binance.vision` (endpoint público só de dados, sem chave), 2000 candles na primeira carga e depois só o trecho novo, com o mesmo cache/lacunas do Postgres. As chaves do cache ganham prefixo (`BINANCE:BTCUSDT`); a B3 mantém o código puro. Mercado 24/7: vale sempre o prazo do timeframe (sem calendário de pregão). Preço ao vivo direto do ticker da Binance (a cada 5 s); autocomplete pela lista pública de pares.
+- **Operar** (ferramenta "Operar (Binance)", só na Binance): ambiente **homologação** (testnet.binance.vision) ou **produção**, ordens a mercado ou limite, comprar/vender, saldo, ordens abertas/recentes e cancelamento. Só envio manual; não há operação automática por sinal.
+- **Travas de segurança**:
+  - chaves de API guardadas com AES-256-GCM (`CREDENTIALS_KEY`), nunca devolvidas ao navegador (só os 4 últimos caracteres) e só salvas depois de uma consulta de saldo bem-sucedida; use chave sem permissão de saque e com IP restrito;
+  - **produção bloqueada por padrão**: só com `BINANCE_ALLOW_PRODUCTION=true`; sem isso é possível ver saldo e validar ordens, não enviar nem cancelar;
+  - em produção: só pares cotados em stablecoin e no máximo `TRADE_MAX_NOTIONAL_USDT` por ordem (padrão 100);
+  - "Validar" usa `/order/test` (não envia); enviar exige `confirm=true` e, em produção, um aceite explícito na tela;
+  - quantidade e preço são ajustados aos filtros do par (passo, mínimos, valor mínimo) com aritmética decimal exata antes de ir à Binance;
+  - 10 ordens reais por minuto por usuário; toda tentativa (inclusive recusadas) fica em `order_log`.
+- **Limitações**: só Spot e só chaves HMAC; a testnet tem preços próprios (o gráfico usa o mercado real); o limite de frequência é em memória (zera ao reiniciar); `BINANCE_ALLOW_PRODUCTION` é por servidor, não por usuário; o cadastro de ordens não tem stop/OCO; Binance.com pode estar indisponível em alguns países.

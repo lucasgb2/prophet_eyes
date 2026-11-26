@@ -35,3 +35,6 @@ table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding
 @media (max-width: 900px) { .workspace { flex-direction:column; } .chartcol { flex:2; } .suggest { width:auto; flex:1; margin:0 16px 12px; } .toolpanel { width:280px; } }
 .chips { display:flex; flex-wrap:wrap; gap:4px; } .chips button { padding:3px 8px; font-size:12px; }
 .toolbody th { color:var(--mut); font-weight:normal; font-size:12px; } .toolbody td, .toolbody th { padding:3px 6px; }
+button.danger { background:#da3633; border-color:#da3633; color:#fff; } button.buy { background:#238636; border-color:#238636; } button.sell { background:#da3633; border-color:#da3633; }
+.warn { color:#f0883e; margin:6px 0; } .confirm { border:1px solid var(--line); border-radius:6px; padding:10px; } .danger-box { border-color:#da3633; }
+.toolbody input { width:100%; } .toolbody .row input { width:auto; min-width:0; } .toolbody input[type=checkbox] { width:auto; }

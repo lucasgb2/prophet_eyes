@@ -13,6 +13,7 @@ CREATE TABLE profiles (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  market TEXT NOT NULL DEFAULT 'b3',   -- 'b3' | 'binance'
   symbol TEXT NOT NULL DEFAULT 'PETR4',
   timeframe TEXT NOT NULL DEFAULT '1d',
   indicators JSONB NOT NULL DEFAULT '[]',
@@ -23,6 +24,7 @@ CREATE TABLE profiles (
 CREATE TABLE alerts (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  market TEXT NOT NULL DEFAULT 'b3',
   symbol TEXT NOT NULL,
   timeframe TEXT NOT NULL DEFAULT '1d',
   kind TEXT NOT NULL,            -- 'price_above' | 'price_below' | 'rsi_above' | 'rsi_below'

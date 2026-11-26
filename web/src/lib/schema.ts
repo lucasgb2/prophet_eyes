@@ -23,7 +23,21 @@ async function run() {
         PRIMARY KEY (symbol, timeframe));
       ALTER TABLE candle_sync ADD COLUMN IF NOT EXISTS gap_checked_at TIMESTAMPTZ;
       CREATE TABLE IF NOT EXISTS assets (
-        symbol TEXT PRIMARY KEY, name TEXT NOT NULL);`);
+        symbol TEXT PRIMARY KEY, name TEXT NOT NULL);
+      ALTER TABLE profiles ADD COLUMN IF NOT EXISTS market TEXT NOT NULL DEFAULT 'b3';
+      ALTER TABLE alerts ADD COLUMN IF NOT EXISTS market TEXT NOT NULL DEFAULT 'b3';
+      CREATE TABLE IF NOT EXISTS exchange_credentials (
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        exchange TEXT NOT NULL, env TEXT NOT NULL,
+        api_key TEXT NOT NULL, secret_enc TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, exchange, env));
+      CREATE TABLE IF NOT EXISTS order_log (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        exchange TEXT NOT NULL, env TEXT NOT NULL, symbol TEXT NOT NULL, side TEXT NOT NULL, type TEXT NOT NULL,
+        quantity TEXT, price TEXT, mode TEXT NOT NULL, ok BOOLEAN NOT NULL, result JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
     try { await client.query("SELECT create_hypertable('candles','ts', if_not_exists => true)"); } catch { /* sem TimescaleDB: tabela comum */ }
     const { rows } = await client.query('SELECT count(*)::int AS n FROM assets');
     if (rows[0].n === 0) {

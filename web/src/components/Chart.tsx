@@ -4,10 +4,11 @@ import { createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 
 import { INDICATORS, INDICATOR_IDS, sma, ema, rsi, macd, bollinger, donchian, vwap, stochastic, adx, obv } from '@/lib/indicators';
 import type { Candle } from '@/lib/types';
 import type { Trade } from '@/lib/backtest';
+import { pricePrecision, type MarketId } from '@/lib/markets';
 
 const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i] == null ? [] : [{ time: time as UTCTimestamp, value: s[i]! }]));
 
-export default function Chart({ candles, indicators, livePrice, showSignals = true, trades = null }: { candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
+export default function Chart({ candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3' }: { market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   useEffect(() => {
@@ -22,6 +23,9 @@ export default function Chart({ candles, indicators, livePrice, showSignals = tr
     const t = candles.map((c) => c.time), p = candles.map((c) => c.close);
     const main = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350' });
     mainRef.current = main;
+    // preços de cripto podem ter muitas casas (ex.: 0,00001234); a escala acompanha o último preço
+    const prec = pricePrecision(market, candles[candles.length - 1].close);
+    main.applyOptions({ priceFormat: { type: 'price', precision: prec, minMove: 10 ** -prec } });
     main.setData(candles.map((c) => ({ ...c, time: c.time as UTCTimestamp })));
     const overlay = (s: (number | null)[], color: string) => chart.addLineSeries({ color, lineWidth: 1, priceLineVisible: false }).setData(line(t, s));
     if (indicators.includes('ema9')) overlay(ema(p, 9), '#ffa657');
@@ -94,7 +98,7 @@ export default function Chart({ candles, indicators, livePrice, showSignals = tr
     main.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: bottom + 0.03 } });
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, indicators, showSignals, trades]);
+  }, [candles, indicators, showSignals, trades, market]);
   // Preço real: atualiza só o último candle (visual), sem tocar nos dados guardados nem nos indicadores.
   useEffect(() => {
     const last = candles.at(-1);

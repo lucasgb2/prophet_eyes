@@ -4,7 +4,7 @@ Dashboard web de análise técnica e alertas para a B3. Veja [docs/arquitetura.m
 
 ## Rodar
 ```bash
-cp .env.example .env     # preencha SESSION_SECRET, POSTGRES_PASSWORD, BRAPI_TOKEN, TELEGRAM_BOT_TOKEN
+cp .env.example .env     # preencha SESSION_SECRET, POSTGRES_PASSWORD, BRAPI_TOKEN, TELEGRAM_BOT_TOKEN (e CREDENTIALS_KEY se for operar na Binance)
 docker compose up -d --build
 ```
 Acesse `https://$DOMAIN` (ou `https://localhost` em teste).

@@ -1,6 +1,8 @@
 import { pool } from './db';
 import { ensureSchema } from './schema';
 import { fetchCandles } from './brapi';
+import { fetchKlines } from './binance';
+import { MARKETS, cacheSymbol, type MarketId } from './markets';
 import { INITIAL_RANGE, firstGapStart, pickRange } from './ranges';
 import { needsRefresh } from './market';
 import type { Candle, Timeframe } from './types';
@@ -37,37 +39,41 @@ const inflight = new Map<string, Promise<Result>>(); // uma busca por vez por pa
  * e sempre pedindo só o trecho desde o último candle guardado (ou desde uma lacuna, uma vez por dia).
  * Se a brapi falhar mas houver cache, devolve o cache (stale).
  */
-export function getCandles(symbolRaw: string, tf: Timeframe): Promise<Result> {
+export function getCandles(symbolRaw: string, tf: Timeframe, market: MarketId = 'b3'): Promise<Result> {
   const symbol = symbolRaw.toUpperCase();
-  const key = `${symbol}|${tf}`;
+  const key = `${market}|${symbol}|${tf}`;
   let p = inflight.get(key);
   if (!p) {
-    p = load(symbol, tf).finally(() => inflight.delete(key));
+    p = load(symbol, tf, market).finally(() => inflight.delete(key));
     inflight.set(key, p);
   }
   return p;
 }
 
-async function load(symbol: string, tf: Timeframe): Promise<Result> {
+async function load(sym: string, tf: Timeframe, market: MarketId): Promise<Result> {
   await ensureSchema();
+  const symbol = cacheSymbol(market, sym); // chave no banco (B3: código puro; Binance: BINANCE:BTCUSDT)
   const cached = await readCache(symbol, tf);
   const sync = (await pool.query(
     `SELECT extract(epoch from synced_at)::float8 AS synced,
             extract(epoch from now()-gap_checked_at)::float8 AS gap_age
        FROM candle_sync WHERE symbol=$1 AND timeframe=$2`, [symbol, tf])).rows[0];
-  if (cached.length && sync && !needsRefresh(tf, sync.synced)) return { candles: cached, stale: false };
+  if (cached.length && sync && !needsRefresh(tf, sync.synced, undefined, MARKETS[market].alwaysOpen)) return { candles: cached, stale: false };
 
   try {
     const last = cached.length ? cached[cached.length - 1].time : null;
     const gap = cached.length && (sync?.gap_age == null || sync.gap_age > GAP_RECHECK_SEC) ? firstGapStart(cached.map((c) => c.time), tf) : null;
     const from = last == null ? null : gap != null ? Math.min(last, gap) : last;
-    const range = pickRange(tf, from);
     let fresh: Candle[];
-    try { fresh = await fetchCandles(symbol, tf, range); }
-    catch (e: any) {
-      // 400 num trecho incremental: tenta a janela inicial do timeframe antes de desistir
-      if (e?.status === 400 && range !== INITIAL_RANGE[tf].range) fresh = await fetchCandles(symbol, tf);
-      else throw e;
+    if (market === 'binance') fresh = await fetchKlines(sym, tf, { fromSec: from });
+    else {
+      const range = pickRange(tf, from);
+      try { fresh = await fetchCandles(sym, tf, range); }
+      catch (e: any) {
+        // 400 num trecho incremental: tenta a janela inicial do timeframe antes de desistir
+        if (e?.status === 400 && range !== INITIAL_RANGE[tf].range) fresh = await fetchCandles(sym, tf);
+        else throw e;
+      }
     }
     await upsert(symbol, tf, fresh);
     await pool.query(

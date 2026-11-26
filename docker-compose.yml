@@ -1,3 +1,13 @@
+x-common-env: &common-env
+      DATABASE_URL: postgres://prophet:${POSTGRES_PASSWORD}@db:5432/prophet
+      SESSION_SECRET: ${SESSION_SECRET:?defina no .env}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
+      BRAPI_RANGES: ${BRAPI_RANGES:-}
+      MARKET_HOLIDAYS: ${MARKET_HOLIDAYS:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      QUOTES_URL: http://quotes:8000
+
 services:
   db:
     image: timescale/timescaledb:latest-pg16
@@ -20,15 +30,12 @@ services:
     restart: unless-stopped
     depends_on:
       db: { condition: service_healthy }
-    environment: &app-env
-      DATABASE_URL: postgres://prophet:${POSTGRES_PASSWORD}@db:5432/prophet
-      SESSION_SECRET: ${SESSION_SECRET:?defina no .env}
-      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
-      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
-      BRAPI_RANGES: ${BRAPI_RANGES:-}
-      MARKET_HOLIDAYS: ${MARKET_HOLIDAYS:-}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      QUOTES_URL: http://quotes:8000
+    environment:
+      <<: *common-env
+      # Operações na Binance: só o web precisa destas (o worker não envia ordens nem lê chaves)
+      CREDENTIALS_KEY: ${CREDENTIALS_KEY:-}
+      BINANCE_ALLOW_PRODUCTION: ${BINANCE_ALLOW_PRODUCTION:-false}
+      TRADE_MAX_NOTIONAL_USDT: ${TRADE_MAX_NOTIONAL_USDT:-100}
 
   worker:
     build: ./web
@@ -37,7 +44,7 @@ services:
     restart: unless-stopped
     depends_on:
       db: { condition: service_healthy }
-    environment: *app-env
+    environment: *common-env
 
   # Preço real via yfinance (Yahoo). Sem porta publicada: só o web acessa, pela rede do Compose.
   quotes:

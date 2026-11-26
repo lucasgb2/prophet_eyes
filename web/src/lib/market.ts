@@ -51,8 +51,9 @@ export const FRESH_SEC: Record<Timeframe, number> = { '1m': 30, '5m': 60, '15m':
  * Precisa buscar na brapi? Com o mercado aberto, vale o prazo do timeframe.
  * Fechado, só se a última sincronização foi ANTES do fim do último pregão (falta pegar o fechamento).
  */
-export function needsRefresh(tf: Timeframe, syncedAtSec: number | null, nowSec = Date.now() / 1000): boolean {
+export function needsRefresh(tf: Timeframe, syncedAtSec: number | null, nowSec = Date.now() / 1000, alwaysOpen = false): boolean {
   if (syncedAtSec == null) return true;
+  if (alwaysOpen) return nowSec - syncedAtSec > FRESH_SEC[tf]; // mercado 24/7: sempre vale o prazo do timeframe
   if (marketOpen(nowSec)) return nowSec - syncedAtSec > FRESH_SEC[tf];
   return syncedAtSec < lastSessionEnd(nowSec);
 }

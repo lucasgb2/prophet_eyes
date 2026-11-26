@@ -1,7 +1,9 @@
 import { pool } from '../lib/db';
 import { getCandles } from '../lib/candles';
 import { rsi } from '../lib/indicators';
+import { ensureSchema } from '../lib/schema';
 import type { Timeframe } from '../lib/types';
+import type { MarketId } from '../lib/markets';
 
 const INTERVAL_MS = 60_000;
 const COOLDOWN_MS = 60 * 60_000; // não repete o mesmo alerta em menos de 1h
@@ -16,13 +18,14 @@ async function telegram(chatId: string, text: string) {
 }
 
 async function tick() {
+  await ensureSchema();
   const { rows } = await pool.query(`
     SELECT a.*, u.telegram_chat_id FROM alerts a JOIN users u ON u.id=a.user_id
     WHERE a.active AND u.telegram_chat_id IS NOT NULL
       AND (a.last_fired_at IS NULL OR a.last_fired_at < now() - $1 * interval '1 millisecond')`, [COOLDOWN_MS]);
   for (const a of rows) {
     try {
-      const { candles } = await getCandles(a.symbol, a.timeframe as Timeframe);
+      const { candles } = await getCandles(a.symbol, a.timeframe as Timeframe, a.market as MarketId);
       const last = candles.at(-1);
       if (!last) continue;
       const r = rsi(candles.map((c) => c.close)).at(-1);
@@ -32,7 +35,7 @@ async function tick() {
         (a.kind === 'rsi_above' && r != null && r > a.value) ||
         (a.kind === 'rsi_below' && r != null && r < a.value);
       if (!fired) continue;
-      await telegram(a.telegram_chat_id, `🔔 ${a.symbol} (${a.timeframe}): ${a.kind.replace('_', ' ')} ${a.value}\nÚltimo: ${last.close.toFixed(2)}${r != null ? ` · RSI ${r.toFixed(1)}` : ''}`);
+      await telegram(a.telegram_chat_id, `🔔 ${a.symbol} (${a.market === 'b3' ? '' : a.market + ' · '}${a.timeframe}): ${a.kind.replace('_', ' ')} ${a.value}\nÚltimo: ${last.close.toFixed(2)}${r != null ? ` · RSI ${r.toFixed(1)}` : ''}`);
       await pool.query('UPDATE alerts SET last_fired_at=now() WHERE id=$1', [a.id]);
     } catch (e) { console.error('alerta', a.id, e); }
   }
@@ -47,13 +50,14 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * então fora do pregão este laço quase não gera requisições.
  */
 async function syncHistory() {
+  await ensureSchema();
   const { rows } = await pool.query(`
-    SELECT symbol, timeframe FROM profiles
-    UNION SELECT symbol, timeframe FROM alerts WHERE active
-    UNION SELECT symbol, '1d' FROM profiles
-    UNION SELECT symbol, '1d' FROM alerts WHERE active`);
+    SELECT market, symbol, timeframe FROM profiles
+    UNION SELECT market, symbol, timeframe FROM alerts WHERE active
+    UNION SELECT market, symbol, '1d' FROM profiles
+    UNION SELECT market, symbol, '1d' FROM alerts WHERE active`);
   for (const r of rows) {
-    try { await getCandles(r.symbol, r.timeframe as Timeframe); } catch (e) { console.error('sync', r.symbol, r.timeframe, (e as Error).message); }
+    try { await getCandles(r.symbol, r.timeframe as Timeframe, r.market as MarketId); } catch (e) { console.error('sync', r.market, r.symbol, r.timeframe, (e as Error).message); }
     await sleep(500); // não dispara tudo de uma vez na brapi
   }
 }
