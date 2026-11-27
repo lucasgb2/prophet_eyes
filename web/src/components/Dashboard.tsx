@@ -171,6 +171,8 @@ export default function Dashboard() {
     ...(profile?.indicators ?? []).filter((id) => id in INDICATORS && !sugg.some((x) => x.id === id)).map((id) => ({ id: id as IndicatorId, label: INDICATORS[id as IndicatorId].label, s: null })),
   ];
   const levelOf = (id: string) => levels.find((l) => l.id === id);
+  const pct = (n: number) => `${(n * 100).toFixed(0)}%`;
+  const signed = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2).replace('.', ',')}`;
   const px = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const toggleLive = () => { const v = !live; setLive(v); try { localStorage.setItem('prophet_live', v ? '1' : '0'); } catch {} };
 
@@ -232,7 +234,7 @@ export default function Dashboard() {
               </div>
               <aside className="panel suggest">
                 <div className="sughead"><b>Indicadores sugeridos</b><button className="help" aria-label="Como ler os indicadores sugeridos" title="Como ler os indicadores sugeridos" onClick={() => setRankHelp(true)}>?</button></div>
-                <p className="muted">{profile.symbol} · {profile.timeframe}. Ordenados pelo que cada indicador teria rendido neste papel no passado. Em cada cartão, o preço de fechamento que faria o indicador dar sinal hoje. Para escolher um, comece pelo “Ret. líq.” e confira quantos sinais há (veja o ?). Não é recomendação.</p>
+                <p className="muted">{profile.symbol} · {profile.timeframe}. Ordenados por quanto as compras de cada indicador superaram, no passado, comprar em um candle qualquer (a régua). Em cada cartão, o preço de fechamento que faria o indicador dar sinal hoje. Para escolher um, comece pela “Vantagem” e confira quantas compras há (veja o ?). Não é recomendação.</p>
                 {updatedAt && <p className="muted" title="Recalculado quando um candle novo aparece">Calculado às {updatedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>}
                 {cards.map(({ id, label, s }) => {
                   const l = levelOf(id), last = candles.at(-1)?.close ?? 0;
@@ -246,14 +248,12 @@ export default function Dashboard() {
                       </div>
                       {s ? (
                         <>
-                          <div className="sugrow"><span>Sinais: <b>{s.signals}</b></span><span>Acerto: <b>{(s.hitRate * 100).toFixed(0)}%</b></span></div>
-                          <div className="sugrow"><span>Ret. líq.: <b style={{ color: s.avgReturnPct >= 0 ? '#26a69a' : '#ef5350' }}>{s.avgReturnPct.toFixed(2)}%</b></span></div>
-                          {s.hitFirst != null && s.hitSecond != null && (
-                            <>
-                              <div className="sugrow"><span>1ª metade <b>{(s.hitFirst * 100).toFixed(0)}%</b></span><span>2ª metade <b>{(s.hitSecond * 100).toFixed(0)}%</b></span></div>
-                              {!s.stable && <div className="sugwarn">Resultado instável entre as duas metades</div>}
-                            </>
-                          )}
+                          <div className="sugrow"><span>Compras: <b>{s.signals}</b></span><span>Acerto: <b>{pct(s.hitRate)}</b> <span className="muted">(régua {pct(s.baseHitRate)})</span></span></div>
+                          <div className="sugrow"><span>Ret. líq.: <b>{signed(s.avgReturnPct)}%</b> <span className="muted">(régua {signed(s.baseAvgPct)}%)</span></span></div>
+                          <div className="sugrow"><span>Vantagem: <b style={{ color: s.edgePct > 0 ? '#26a69a' : '#ef5350' }}>{signed(s.edgePct)} p.p.</b></span></div>
+                          {s.edgeFirstPct != null && s.edgeSecondPct != null && <div className="sugrow"><span>1ª metade <b>{signed(s.edgeFirstPct)}</b></span><span>2ª metade <b>{signed(s.edgeSecondPct)}</b></span></div>}
+                          {s.edgePct <= 0 ? <div className="sugwarn">Não superou a régua</div> : !s.stable && <div className="sugwarn">Vantagem instável entre as duas metades</div>}
+                          {s.sell && <div className="sugrow muted"><span>Vendas: {s.sell.signals} · caiu depois em {pct(s.sell.fallRate)} (régua {pct(s.sell.baseFallRate)})</span></div>}
                         </>
                       ) : <div className="muted">Sem dados suficientes de sinais.</div>}
                       {l && (

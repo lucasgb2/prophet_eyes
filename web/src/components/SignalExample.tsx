@@ -12,7 +12,10 @@ const CANDLES = CLOSES.map((close, i) => { const open = CLOSES[i - 1] ?? close; 
 const SIGNAL = INDICATORS.sma20.signals(CANDLES).findIndex((s, i) => i >= WARMUP.length && s === 1) - WARMUP.length;
 const MA = sma(CLOSES, 20).slice(WARMUP.length) as number[];
 const VIEW = CANDLES.slice(WARMUP.length);
-const MARKS = [3, 5, 10].map((h) => ({ h, i: SIGNAL + h, ret: ((VIEW[SIGNAL + h].close - VIEW[SIGNAL].close) / VIEW[SIGNAL].close - COST) * 100 }));
+// abre um pouco acima do fechamento do sinal, para mostrar que o preço de entrada é outro
+const ENTRY = VIEW[SIGNAL].close + 0.8;
+VIEW[SIGNAL + 1] = { ...VIEW[SIGNAL + 1], open: ENTRY, high: Math.max(ENTRY, VIEW[SIGNAL + 1].high) + 0.2 };
+const MARKS = [3, 5, 10].map((h) => ({ h, i: SIGNAL + h, ret: (VIEW[SIGNAL + h].close / ENTRY - 1 - COST) * 100 }));
 
 const W = 480, H = 230, STEP = W / VIEW.length;
 const LO = Math.min(...VIEW.map((c) => c.low)) - 2.5, HI = Math.max(...VIEW.map((c) => c.high)) + 1.5;
@@ -35,12 +38,12 @@ export default function SignalExample() {
   const reached = MARKS.filter((m) => upTo >= m.i);
   const caption = upTo < SIGNAL ? '1) O preço está abaixo da média (linha amarela). Ainda não há sinal.'
     : upTo === SIGNAL ? '2) O candle fechou ACIMA da média: sinal de compra 🔔'
-    : !reached.length ? '3) O app acompanha o que o preço faz depois do sinal…'
+    : !reached.length ? '3) A compra é na abertura do candle seguinte; o app acompanha o preço…'
     : reached.length < MARKS.length ? `4) Mede o resultado ${reached.map((m) => `${m.h}`).join(' e ')} candles depois, já sem o custo.`
-    : `5) Este sinal conta como acerto: aos 5 candles rendeu +${num(MARKS[1].ret)}% líquidos.`;
+    : `5) Acerto: aos 5 candles rendeu +${num(MARKS[1].ret)}% líquidos. No fim, a média de todas as compras é comparada com a régua.`;
   return (
     <figure className="example">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Exemplo animado: o preço cruza a média móvel para cima, gera sinal de compra e o resultado é medido 3, 5 e 10 candles depois">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Exemplo animado: o preço cruza a média móvel para cima, gera sinal de compra e a compra é na abertura seguinte e o resultado é medido 3, 5 e 10 candles depois do sinal">
         <polyline fill="none" stroke="#e3b341" strokeWidth="2" points={MA.slice(0, upTo + 1).map((v, i) => `${x(i)},${y(v)}`).join(' ')} />
         {VIEW.slice(0, upTo + 1).map((c, i) => {
           const color = c.close >= c.open ? '#26a69a' : '#ef5350';
@@ -53,10 +56,10 @@ export default function SignalExample() {
         })}
         {upTo >= SIGNAL && (
           <g>
-            <line x1={0} x2={W} y1={y(VIEW[SIGNAL].close)} y2={y(VIEW[SIGNAL].close)} stroke="#8b949e" strokeDasharray="4 4" />
+            {upTo > SIGNAL && <line x1={0} x2={W} y1={y(ENTRY)} y2={y(ENTRY)} stroke="#8b949e" strokeDasharray="4 4" />}
             <text x={x(SIGNAL)} y={y(VIEW[SIGNAL].low) + 14} textAnchor="middle" fill="#26a69a" fontSize="13">▲</text>
             <text x={x(SIGNAL)} y={y(VIEW[SIGNAL].low) + 28} textAnchor="middle" fontSize="13">🔔</text>
-            <text x={x(SIGNAL) + STEP * 0.6} y={y(VIEW[SIGNAL].close) + 14} textAnchor="start" fill="#8b949e" fontSize="11">preço do sinal {num(VIEW[SIGNAL].close)}</text>
+            {upTo > SIGNAL && <text x={x(SIGNAL + 1) + STEP * 0.6} y={y(ENTRY) + 14} textAnchor="start" fill="#8b949e" fontSize="11">entrada {num(ENTRY)}</text>}
           </g>
         )}
         {reached.map((m) => (
