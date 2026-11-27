@@ -118,6 +118,7 @@ export default function Chart({ news = [], viewKey = '', orders = [], candles, i
     main.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: bottom + 0.03 } });
     const end = candles.length - 1, saved = viewRef.current;
     if (saved && saved.key === viewKey) chart.timeScale().setVisibleLogicalRange({ from: end + saved.from, to: end + saved.to });
+    else if (candles.length > 300) chart.timeScale().setVisibleLogicalRange({ from: end - 250, to: end + 2 }); // histórico longo: abre no último ano
     else chart.timeScale().fitContent();
     return () => {
       const r = chart.timeScale().getVisibleLogicalRange();

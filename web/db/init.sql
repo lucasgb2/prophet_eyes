@@ -73,3 +73,13 @@ CREATE TABLE news_bells (
   since TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, market, symbol)
 );
+
+-- Papéis que já receberam o histórico diário longo da B3 (arquivos COTAHIST) e os desdobramentos ajustados
+CREATE TABLE history_import (
+  symbol TEXT PRIMARY KEY, years INT NOT NULL, candles INT NOT NULL, splits JSONB NOT NULL DEFAULT '[]',
+  imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  jumps JSONB NOT NULL DEFAULT '[]', retry_at TIMESTAMPTZ
+);
+CREATE TABLE history_status (
+  symbol TEXT PRIMARY KEY, state TEXT NOT NULL, detail TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

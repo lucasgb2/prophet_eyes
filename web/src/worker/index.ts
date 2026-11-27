@@ -3,6 +3,7 @@ import { getCandles } from '../lib/candles';
 import { rsi } from '../lib/indicators';
 import { NEWS_EVERY_MS, syncNews } from '../lib/news/collect';
 import { pendingNews } from '../lib/news/alerts';
+import { historyYears, importHistory, jumpedSymbols, pendingSymbols } from '../lib/cotahist-import';
 import { alertKey, dedupeByTitle, groupMessage } from '../lib/news/alert-text';
 import { latestSignal, signalBody, signalKey, signalTitle, validBells } from '../lib/signal-watch';
 import { ensureSchema } from '../lib/schema';
@@ -130,7 +131,26 @@ async function newsBellTick() {
   }
 }
 
+/** Histórico diário longo (arquivos da B3): papéis em uso que não têm, e os que sofreram desdobramento depois. São centenas de MB. */
+let historyBusy = false, historyRetryAt = 0;
+async function historyTick() {
+  if (historyBusy || !historyYears() || Date.now() < historyRetryAt) return;
+  historyBusy = true;
+  try {
+    await ensureSchema();
+    const symbols = [...new Set([...(await pendingSymbols()), ...(await jumpedSymbols())])];
+    if (!symbols.length) return;
+    console.log('histórico B3: importando', symbols.join(', '));
+    console.log('histórico B3: candles importados', JSON.stringify(await importHistory(symbols)));
+  } catch (e) {
+    historyRetryAt = Date.now() + 6 * 3600_000; // não baixa tudo de novo a cada ciclo se a B3 estiver com problema
+    console.error('histórico B3 falhou (tenta de novo em 6 h):', (e as Error).message);
+  } finally { historyBusy = false; }
+}
+
 console.log('worker iniciado');
+setInterval(() => historyTick().catch(console.error), 15_000); // só consulta o banco; baixa quando há pendência
+historyTick().catch(console.error);
 setInterval(() => newsBellTick().catch(console.error), INTERVAL_MS);
 newsBellTick().catch(console.error);
 setInterval(() => newsTick().catch(console.error), NEWS_EVERY_MS + 5000); // um pouco depois do limite de 15 min

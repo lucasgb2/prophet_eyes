@@ -5,6 +5,7 @@ x-common-env: &common-env
       BRAPI_TOKEN: ${BRAPI_TOKEN:-}
       BRAPI_RANGES: ${BRAPI_RANGES:-}
       MARKET_HOLIDAYS: ${MARKET_HOLIDAYS:-}
+      HISTORY_YEARS: ${HISTORY_YEARS:-5}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       QUOTES_URL: http://quotes:8000
 

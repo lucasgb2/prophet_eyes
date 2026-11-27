@@ -46,6 +46,13 @@ async function run() {
         market TEXT NOT NULL, symbol TEXT NOT NULL, facts BOOLEAN NOT NULL DEFAULT true, categories JSONB NOT NULL DEFAULT '[]',
         since TIMESTAMPTZ NOT NULL DEFAULT now(),
         PRIMARY KEY (user_id, market, symbol));
+      CREATE TABLE IF NOT EXISTS history_import (
+        symbol TEXT PRIMARY KEY, years INT NOT NULL, candles INT NOT NULL, splits JSONB NOT NULL DEFAULT '[]',
+        imported_at TIMESTAMPTZ NOT NULL DEFAULT now());
+      ALTER TABLE history_import ADD COLUMN IF NOT EXISTS jumps JSONB NOT NULL DEFAULT '[]';
+      ALTER TABLE history_import ADD COLUMN IF NOT EXISTS retry_at TIMESTAMPTZ;
+      CREATE TABLE IF NOT EXISTS history_status (
+        symbol TEXT PRIMARY KEY, state TEXT NOT NULL, detail TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
       CREATE TABLE IF NOT EXISTS exchange_credentials (
         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         exchange TEXT NOT NULL, env TEXT NOT NULL,

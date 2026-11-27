@@ -38,6 +38,8 @@ table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding
 button.danger { background:#da3633; border-color:#da3633; color:#fff; } button.buy { background:#238636; border-color:#238636; } button.sell { background:#da3633; border-color:#da3633; }
 .warn { color:#f0883e; margin:6px 0; } .confirm { border:1px solid var(--line); border-radius:6px; padding:10px; } .danger-box { border-color:#da3633; }
 .toolbody input { width:100%; } .toolbody .row input { width:auto; min-width:0; } .toolbody input[type=checkbox] { width:auto; }
+.histstatus { font-size:12px; } .histstatus.ok { color:#26a69a; } .histstatus.error { color:#f85149; }
+.histstatus.locating, .histstatus.downloading { color:#d29922; }
 .envtag { padding:3px 8px; border-radius:10px; font-size:12px; font-weight:600; border:1px solid var(--line); }
 .envtag.testnet { color:#d29922; border-color:#d29922; } .envtag.production { color:#fff; background:#da3633; border-color:#da3633; }
 button:disabled { opacity:.35; cursor:not-allowed; }

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart, { type ChartOrder, type NewsMark } from './Chart';
 import SymbolInput from './SymbolInput';
 import MarketLogo from './MarketLogo';
+import HistoryBadge from './HistoryBadge';
 import { TOOLS } from './tools/registry';
 import IndicatorHelpModal from './IndicatorHelpModal';
 import RankingHelpModal from './RankingHelpModal';
@@ -64,17 +65,18 @@ export default function Dashboard() {
   const keyRef = useRef(key);
   keyRef.current = key;
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null); // quando o ranking e os gatilhos foram calculados
+  const [reload, setReload] = useState(0); // recarga pedida depois de importar o histórico
   useEffect(() => {
     if (!profile || !envReady) return;
     setErr(''); setSugg([]); setUpdatedAt(null);
     const q = `market=${profile.market}&symbol=${profile.symbol}&tf=${profile.timeframe}${q_env}`;
     // Se o usuário trocar de papel/timeframe antes da resposta chegar, a resposta velha é descartada
     let stale = false;
-    j(`/api/candles?${q}`).then(async (r) => { const body = await r.json(); if (stale) return; if (r.ok) { setCandles(body); setCandlesKey(key || ''); } else { setCandles([]); setErr(body.error); } }).catch(() => {});
+    j(`/api/candles?${q}`).then(async (r) => { const body = await r.json(); if (stale) return; if (r.ok) { setCandles(body); setCandlesKey(`${key}|${reload}`); } else { setCandles([]); setErr(body.error); } }).catch(() => {});
     j(`/api/suggest?${q}`).then(async (r) => { const body = await r.json(); if (!stale && r.ok) { setSugg(body); setUpdatedAt(new Date()); } }).catch(() => {});
     return () => { stale = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, reload]);
 
   // Preço real (yfinance): consulta a cada 15 s enquanto estiver ligado
   const symbol = profile?.symbol, market = profile?.market;
@@ -205,6 +207,7 @@ export default function Dashboard() {
               {profile.market === 'binance' && <span className={`envtag ${binEnv}`} title={binEnv === 'production' ? 'Ordens usam dinheiro real (muda no painel Operar)' : 'Ambiente de teste: sem dinheiro real (muda no painel Operar)'}>{binEnv === 'production' ? 'Produção' : 'Homologação'}</span>}
               <button className={live ? 'on' : ''} onClick={toggleLive} title={profile.market === 'b3' ? 'Cotação em tempo quase real via yfinance' : 'Preço e candle ao vivo por websocket da Binance (cai para consulta a cada 5 s se desconectar)'}>Preço real</button>
               {live && shown && <span><b>{fmtPrice(profile.market, profile.symbol, shown.price)}</b>{shown.changePct != null && <span style={{ color: shown.changePct >= 0 ? '#26a69a' : '#ef5350' }}> {shown.changePct >= 0 ? '+' : ''}{shown.changePct.toFixed(2)}%</span>}{viaWs && <span className="muted" title="Websocket da Binance conectado"> ●</span>}</span>}
+              {profile.market === 'b3' && <HistoryBadge key={profile.symbol} symbol={profile.symbol} onReload={() => setReload((n) => n + 1)} />}
               {ordersErr && <span className="muted" style={{ color: '#f85149' }} title={ordersErr}>ordens indisponíveis: {ordersErr.slice(0, 70)}</span>}
               {live && !viaWs && quoteErr && <span className="muted" title={quoteErr}>cotação indisponível</span>}
               <button onClick={async () => { await j(`/api/profiles?id=${profile.id}`, 'DELETE'); const rest = profiles.filter((p) => p.id !== profile.id); setProfiles(rest); setActiveId(rest[0]?.id ?? null); }}>Excluir aba</button>
