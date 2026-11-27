@@ -6,6 +6,7 @@ import type { Trade } from '@/lib/backtest';
 import type { MarketId } from '@/lib/markets';
 import TradePanel from './TradePanel';
 import NewsPanel from './NewsPanel';
+import RiskPanel from './RiskPanel';
 
 /** Contexto repassado a cada ferramenta da barra lateral (a aba/ativo atual). */
 export type ToolCtx = {
@@ -38,6 +39,12 @@ export const TOOLS: Tool[] = [
     title: 'Simulação de operações',
     icon: svg(<><path d="M3 3v18h18" /><path d="m7 15 4-5 3 3 5-7" /></>),
     Panel: SimulationPanel,
+  },
+  {
+    id: 'risco',
+    title: 'Calculadora de risco',
+    icon: svg(<><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" /></>),
+    Panel: RiskPanel,
   },
   {
     id: 'noticias',

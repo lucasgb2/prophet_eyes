@@ -55,9 +55,9 @@ export default function SimulationPanel({ ctx }: { ctx: ToolCtx }) {
           </select>
           {o.exit === 'bars' && <input type="number" min={1} value={o.bars} onChange={(e) => set({ bars: Math.max(1, Number(e.target.value) || 1) })} style={{ width: 64 }} />}
         </div>
-        <div className="row">
-          <label className="muted">Stop % <input type="number" min={0} step="any" value={o.stopPct ?? ''} placeholder="—" onChange={(e) => set({ stopPct: num(e.target.value) })} style={{ width: 64 }} /></label>
-          <label className="muted">Alvo % <input type="number" min={0} step="any" value={o.targetPct ?? ''} placeholder="—" onChange={(e) => set({ targetPct: num(e.target.value) })} style={{ width: 64 }} /></label>
+        <div className="row wrap">
+          <label className="muted">Stop loss % <input type="number" min={0} step="any" value={o.stopPct ?? ''} placeholder="—" onChange={(e) => set({ stopPct: num(e.target.value) })} style={{ width: 64 }} /></label>
+          <label className="muted">Stop gain % <input type="number" min={0} step="any" value={o.targetPct ?? ''} placeholder="—" onChange={(e) => set({ targetPct: num(e.target.value) })} style={{ width: 64 }} /></label>
           <label className="muted">Custo % <input type="number" min={0} step="any" value={o.costPct} onChange={(e) => set({ costPct: Math.max(0, Number(e.target.value) || 0) })} style={{ width: 64 }} /></label>
         </div>
       </section>
@@ -94,7 +94,7 @@ export default function SimulationPanel({ ctx }: { ctx: ToolCtx }) {
             {!r.trades.length && <span className="muted">Nenhum sinal de compra no período.</span>}
             <table><thead><tr><th>Entrada</th><th>Saída</th><th>Result.</th><th>Motivo</th></tr></thead>
               <tbody>{[...r.trades].reverse().map((t) => (
-                <tr key={t.entryIdx}><td>{fmt(t.entryTime)}</td><td>{fmt(t.exitTime)}</td><td style={{ color: col(t.retPct) }}>{pct(t.retPct, 2)}</td><td className="muted">{t.reason}</td></tr>))}</tbody>
+                <tr key={t.entryIdx}><td>{fmt(t.entryTime)}</td><td>{fmt(t.exitTime)}</td><td style={{ color: col(t.retPct) }}>{pct(t.retPct, 2)}</td><td className="muted">{t.reason === 'stop' ? 'stop loss' : t.reason === 'alvo' ? 'stop gain' : t.reason}</td></tr>))}</tbody>
             </table>
           </section>
           <p className="muted">Simulação histórica: não inclui impostos, corretagem real nem execução parcial, e não garante resultado futuro. Não é recomendação de investimento.</p>
