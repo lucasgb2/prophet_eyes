@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart, { type ChartOrder } from './Chart';
 import SymbolInput from './SymbolInput';
+import MarketLogo from './MarketLogo';
 import { TOOLS } from './tools/registry';
 import IndicatorHelpModal from './IndicatorHelpModal';
 import RankingHelpModal from './RankingHelpModal';
@@ -171,6 +172,7 @@ export default function Dashboard() {
               <select aria-label="Mercado" value={profile.market} onChange={(e) => update({ market: e.target.value as MarketId })}>
                 {MARKET_IDS.map((m) => <option key={m} value={m}>{MARKETS[m].label}</option>)}
               </select>
+              <MarketLogo market={profile.market} />
               <SymbolInput symbol={profile.symbol} market={profile.market} env={dataEnv} onSelect={(s) => update({ symbol: s })} />
               {TIMEFRAMES.map((t) => { const off = blocked(t, profile); return <button key={t} className={t === profile.timeframe ? 'on' : ''} disabled={off} title={off ? `Indisponível para ${profile.symbol} no seu plano da brapi (permitidos: ${planB3!.join(', ')})` : undefined} onClick={() => update({ timeframe: t })}>{t}</button>; })}
               <span className="grow" />
@@ -200,7 +202,7 @@ export default function Dashboard() {
               </div>
               <aside className="panel suggest">
                 <div className="sughead"><b>Indicadores sugeridos</b><button className="help" aria-label="Como ler os indicadores sugeridos" title="Como ler os indicadores sugeridos" onClick={() => setRankHelp(true)}>?</button></div>
-                <p className="muted">{profile.symbol} · {profile.timeframe}. Ordenados pelo que cada indicador teria rendido neste papel no passado. Em cada cartão, o preço de fechamento que faria o indicador dar sinal hoje. Não é recomendação.</p>
+                <p className="muted">{profile.symbol} · {profile.timeframe}. Ordenados pelo que cada indicador teria rendido neste papel no passado. Em cada cartão, o preço de fechamento que faria o indicador dar sinal hoje. Para escolher um, comece pelo “Ret. líq.” e confira quantos sinais há (veja o ?). Não é recomendação.</p>
                 {updatedAt && <p className="muted" title="Recalculado quando um candle novo aparece">Calculado às {updatedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>}
                 {cards.map(({ id, label, s }) => {
                   const l = levelOf(id), last = candles.at(-1)?.close ?? 0;

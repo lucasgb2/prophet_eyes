@@ -56,6 +56,14 @@ button.help:hover { color:var(--fg); }
 .modal header { display:flex; justify-content:space-between; align-items:center; font-size:16px; }
 .modal h4 { margin:14px 0 4px; color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
 .modal p { margin:0; line-height:1.5; } .modal p.small { margin-top:16px; font-size:12px; }
+/* Ajuda do ranking: listas, dica e exemplo animado */
+.modal ol, .modal ul { margin:0; padding-left:20px; line-height:1.5; } .modal li { margin-bottom:4px; }
+.modal .tip { margin-top:8px; padding:8px 10px; border-left:3px solid #e3b341; background:#e3b34114; }
+.example { margin:0; border:1px solid var(--line); border-radius:8px; padding:8px; background:var(--bg); }
+.example svg { display:block; width:100%; height:auto; }
+.example figcaption { display:flex; gap:8px; align-items:center; justify-content:space-between; min-height:40px; font-size:13px; }
+.example button { flex:none; font-size:12px; padding:4px 10px; }
+.mktlogo { width:32px; height:32px; flex:none; }
 /* Cartão de indicador sugerido */
 .sugcard { border-top:1px solid var(--line); padding:10px 0; display:flex; flex-direction:column; gap:4px; }
 .sughead { display:flex; align-items:center; margin-bottom:2px; }
