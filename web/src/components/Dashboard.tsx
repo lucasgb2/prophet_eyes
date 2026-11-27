@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart, { type ChartOrder } from './Chart';
 import SymbolInput from './SymbolInput';
 import { TOOLS } from './tools/registry';
@@ -7,11 +7,12 @@ import IndicatorHelpModal from './IndicatorHelpModal';
 import RankingHelpModal from './RankingHelpModal';
 import { useSignalNotifier } from './useSignalNotifier';
 import { useBinanceEnv } from './useBinanceEnv';
+import { useNewCandle } from './useNewCandle';
 import { useBinanceStream } from './useBinanceStream';
 import { MARKET_IDS, MARKETS, fmtPrice, type MarketId } from '@/lib/markets';
 import { INDICATORS, INDICATOR_IDS, type IndicatorId } from '@/lib/indicators';
 import { triggerLevels } from '@/lib/levels';
-import { TIMEFRAMES, type Candle } from '@/lib/types';
+import { TIMEFRAMES, type Candle, type Timeframe } from '@/lib/types';
 import type { Suggestion } from '@/lib/suggest';
 import type { Trade } from '@/lib/backtest';
 
@@ -52,14 +53,17 @@ export default function Dashboard() {
   }, []);
 
   const key = profile && envReady && `${profile.market}|${dataEnv}|${profile.symbol}|${profile.timeframe}`;
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null); // quando o ranking e os gatilhos foram calculados
   useEffect(() => {
     if (!profile || !envReady) return;
-    setErr(''); setSugg([]);
+    setErr(''); setSugg([]); setUpdatedAt(null);
     const q = `market=${profile.market}&symbol=${profile.symbol}&tf=${profile.timeframe}${q_env}`;
     // Se o usuário trocar de papel/timeframe antes da resposta chegar, a resposta velha é descartada
     let stale = false;
     j(`/api/candles?${q}`).then(async (r) => { const body = await r.json(); if (stale) return; if (r.ok) setCandles(body); else { setCandles([]); setErr(body.error); } }).catch(() => {});
-    j(`/api/suggest?${q}`).then(async (r) => { const body = await r.json(); if (!stale && r.ok) setSugg(body); }).catch(() => {});
+    j(`/api/suggest?${q}`).then(async (r) => { const body = await r.json(); if (!stale && r.ok) { setSugg(body); setUpdatedAt(new Date()); } }).catch(() => {});
     return () => { stale = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -69,6 +73,26 @@ export default function Dashboard() {
   // Binance: websocket público (tempo real); o polling HTTP só roda enquanto o websocket não estiver conectado
   const stream = useBinanceStream(live && market === 'binance' && envReady, symbol, profile?.timeframe, dataEnv);
   const viaWs = market === 'binance' && stream.connected && stream.price != null;
+
+  // Candle novo (o anterior fechou): busca os candles e refaz o backtest/gatilhos, sem limpar a tela
+  const refreshing = useRef(false);
+  const lastTime = candles.at(-1)?.time;
+  useNewCandle(lastTime, profile?.timeframe as Timeframe | undefined, live && viaWs ? stream.candle?.time : undefined, async () => {
+    if (!profile || !envReady || lastTime == null || refreshing.current) return;
+    const asked = key, q = `market=${profile.market}&symbol=${profile.symbol}&tf=${profile.timeframe}${q_env}`;
+    refreshing.current = true;
+    try {
+      const r = await j(`/api/candles?${q}`);
+      if (!r.ok) return;
+      const body: Candle[] = await r.json();
+      if (keyRef.current !== asked || (body.at(-1)?.time ?? 0) <= lastTime) return; // trocou de papel, ou o candle novo ainda não veio
+      const s = await j(`/api/suggest?${q}`);
+      const next = s.ok ? await s.json() : null;
+      if (keyRef.current !== asked) return;
+      setCandles(body);
+      if (next) { setSugg(next); setUpdatedAt(new Date()); }
+    } catch {} finally { refreshing.current = false; }
+  });
   useEffect(() => {
     setQuote(null); setQuoteErr('');
     if (!live || !symbol || !market || viaWs || !envReady) return;
@@ -172,11 +196,12 @@ export default function Dashboard() {
             </div>
             <div className="workspace">
               <div className="panel chartcol">
-                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? shown?.price : null} liveCandle={live && viaWs ? stream.candle : null} showSignals={signals} trades={trades} orders={openOrders} />}
+                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart viewKey={key || ''} market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? shown?.price : null} liveCandle={live && viaWs ? stream.candle : null} showSignals={signals} trades={trades} orders={openOrders} />}
               </div>
               <aside className="panel suggest">
                 <div className="sughead"><b>Indicadores sugeridos</b><button className="help" aria-label="Como ler os indicadores sugeridos" title="Como ler os indicadores sugeridos" onClick={() => setRankHelp(true)}>?</button></div>
                 <p className="muted">{profile.symbol} · {profile.timeframe}. Ordenados pelo que cada indicador teria rendido neste papel no passado. Em cada cartão, o preço de fechamento que faria o indicador dar sinal hoje. Não é recomendação.</p>
+                {updatedAt && <p className="muted" title="Recalculado quando um candle novo aparece">Calculado às {updatedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>}
                 {cards.map(({ id, label, s }) => {
                   const l = levelOf(id), last = candles.at(-1)?.close ?? 0;
                   return (

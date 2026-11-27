@@ -10,9 +10,11 @@ const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i]
 
 export type ChartOrder = { orderId: number; side: string; type: string; price: string; stopPrice?: string; origQty: string; executedQty: string };
 
-export default function Chart({ orders = [], candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3', liveCandle = null }: { orders?: ChartOrder[]; liveCandle?: Candle | null; market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
+export default function Chart({ viewKey = '', orders = [], candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3', liveCandle = null }: { viewKey?: string; orders?: ChartOrder[]; liveCandle?: Candle | null; market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  // zoom/posição do último gráfico, medidos a partir do candle mais recente, para não zerar quando o gráfico é refeito
+  const viewRef = useRef<{ key: string; from: number; to: number } | null>(null);
   const [legendOpen, setLegendOpen] = useState(true);
   useEffect(() => { try { setLegendOpen(localStorage.getItem('prophet_legend') !== '0'); } catch {} }, []);
   const toggleLegend = () => { const v = !legendOpen; setLegendOpen(v); try { localStorage.setItem('prophet_legend', v ? '1' : '0'); } catch {} };
@@ -102,8 +104,14 @@ export default function Chart({ orders = [], candles, indicators, livePrice, sho
       main.setMarkers(marks.sort((a, b) => (a.time as number) - (b.time as number)));
     }
     main.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: bottom + 0.03 } });
-    chart.timeScale().fitContent();
-    return () => chart.remove();
+    const end = candles.length - 1, saved = viewRef.current;
+    if (saved && saved.key === viewKey) chart.timeScale().setVisibleLogicalRange({ from: end + saved.from, to: end + saved.to });
+    else chart.timeScale().fitContent();
+    return () => {
+      const r = chart.timeScale().getVisibleLogicalRange();
+      viewRef.current = r ? { key: viewKey, from: r.from - end, to: r.to - end } : null;
+      chart.remove();
+    };
   }, [candles, indicators, showSignals, trades, market]);
   // Preço real: atualiza só o último candle (visual), sem tocar nos dados guardados nem nos indicadores.
   useEffect(() => {
