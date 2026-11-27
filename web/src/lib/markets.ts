@@ -18,7 +18,7 @@ export type MarketDef = {
 };
 
 export const MARKETS: Record<MarketId, MarketDef> = {
-  b3: { id: 'b3', label: 'B3 (ações)', defaultSymbol: 'PETR4', symbolRe: /^[A-Z0-9]{4,8}$/, placeholder: 'Código ou empresa', alwaysOpen: false, canTrade: false, quoteEveryMs: 15000 },
+  b3: { id: 'b3', label: 'B3 (ações)', defaultSymbol: 'PETR4', symbolRe: /^(\^BVSP|[A-Z0-9]{4,8})$/, placeholder: 'Código ou empresa', alwaysOpen: false, canTrade: false, quoteEveryMs: 15000 },
   binance: { id: 'binance', label: 'Binance (cripto)', defaultSymbol: 'BTCUSDT', symbolRe: /^[A-Z0-9]{5,20}$/, placeholder: 'Par, ex.: BTCUSDT', alwaysOpen: true, canTrade: true, quoteEveryMs: 5000 },
 };
 

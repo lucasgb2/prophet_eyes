@@ -30,3 +30,10 @@ test('lê os intervalos permitidos da mensagem da brapi', () => {
   assert.deepEqual(parseAllowedIntervals('1d,1wk,1mo'), ['1d', '1wk', '1mo']);
   assert.equal(parseAllowedIntervals('erro qualquer'), null);
 });
+
+import { validSymbol } from './markets';
+test('Ibovespa é aceito na B3; outros símbolos com ^ não', () => {
+  assert.equal(validSymbol('b3', '^BVSP'), true);
+  assert.equal(validSymbol('b3', '^GSPC'), false);
+  assert.equal(validSymbol('binance', '^BVSP'), false);
+});

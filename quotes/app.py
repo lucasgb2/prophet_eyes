@@ -19,7 +19,7 @@ def get_quote(symbol: str) -> dict:
         hit = _cache.get(symbol)
         if hit and now - hit[0] < TTL:
             return hit[1]
-    info = yf.Ticker(f"{symbol}.SA").fast_info
+    info = yf.Ticker(symbol if symbol.startswith("^") else f"{symbol}.SA").fast_info  # índices (^BVSP) não levam .SA
     price = info["last_price"]
     prev = info["previous_close"]
     if price is None:
@@ -53,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
         if url.path != "/quote":
             return self._send(404, {"error": "não encontrado"})
         symbol = (parse_qs(url.query).get("symbol") or [""])[0].upper()
-        if not re.fullmatch(r"[A-Z0-9]{4,8}", symbol):
+        if not re.fullmatch(r"\^BVSP|[A-Z0-9]{4,8}", symbol):
             return self._send(400, {"error": "símbolo inválido"})
         try:
             self._send(200, get_quote(symbol))

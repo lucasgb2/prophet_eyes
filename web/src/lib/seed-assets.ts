@@ -10,5 +10,5 @@ export const SEED_ASSETS: [string, string][] = [
   ['CPLE6', 'Copel PNB'], ['VIVT3', 'Telefônica Brasil (Vivo) ON'], ['TIMS3', 'TIM ON'], ['KLBN11', 'Klabin UNIT'],
   ['EMBR3', 'Embraer ON'], ['AZUL4', 'Azul PN'], ['CSAN3', 'Cosan ON'], ['UGPA3', 'Ultrapar ON'],
   ['BRFS3', 'BRF ON'], ['MRFG3', 'Marfrig ON'], ['ENEV3', 'Eneva ON'], ['TOTS3', 'Totvs ON'],
-  ['CYRE3', 'Cyrela ON'], ['MRVE3', 'MRV ON'], ['BOVA11', 'iShares Ibovespa ETF'],
+  ['CYRE3', 'Cyrela ON'], ['MRVE3', 'MRV ON'], ['BOVA11', 'iShares Ibovespa ETF'], ['^BVSP', 'Ibovespa (índice)'],
 ];

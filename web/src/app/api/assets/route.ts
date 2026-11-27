@@ -10,7 +10,7 @@ import { marketOf } from '@/lib/markets';
 const query = async (q: string) => (await pool.query(
   `SELECT symbol, name FROM assets
     WHERE $1 = '' OR symbol ILIKE $2 OR name ILIKE $3
-    ORDER BY (symbol ILIKE $2) DESC, symbol LIMIT 12`,
+    ORDER BY (symbol ILIKE $2) DESC, (symbol LIKE '^%') DESC, symbol LIMIT 12`, // índices antes dos ETFs que só citam o nome
   [q, `${q}%`, `%${q}%`])).rows;
 
 // Autocomplete: busca no banco; se houver poucos resultados, consulta a brapi e guarda o que aprender.

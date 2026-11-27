@@ -53,7 +53,7 @@ async function sources(market: MarketId, symbol: string): Promise<Promise<Item[]
   ];
   const name = await companyName(symbol);
   return [
-    google(name ? `${symbol} OR "${name}" ações` : `${symbol} ações`),
+    google(symbol === '^BVSP' ? 'Ibovespa' : name ? `${symbol} OR "${name}" ações` : `${symbol} ações`),
     cvmItems(symbol).then((l) => l.map((i) => ({ ...i, kind: 'fato' as const, dateOnly: true }))),
   ];
 }

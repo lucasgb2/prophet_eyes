@@ -59,8 +59,10 @@ async function run() {
         quantity TEXT, price TEXT, mode TEXT NOT NULL, ok BOOLEAN NOT NULL, result JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
     try { await client.query("SELECT create_hypertable('candles','ts', if_not_exists => true)"); } catch { /* sem TimescaleDB: tabela comum */ }
+    // bancos que já tinham a lista de ativos recebem o índice (a semente abaixo só roda em banco vazio)
+    await client.query("INSERT INTO assets(symbol,name) VALUES ('^BVSP','Ibovespa (índice)') ON CONFLICT DO NOTHING");
     const { rows } = await client.query('SELECT count(*)::int AS n FROM assets');
-    if (rows[0].n === 0) {
+    if (rows[0].n <= 1) {
       await client.query(
         'INSERT INTO assets(symbol,name) SELECT * FROM unnest($1::text[],$2::text[]) ON CONFLICT DO NOTHING',
         [SEED_ASSETS.map((a) => a[0]), SEED_ASSETS.map((a) => a[1])]);
