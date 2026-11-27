@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [showNews, setShowNews] = useState(false); // marcar no gráfico os candles com notícia do papel
   const [newsMarks, setNewsMarks] = useState<NewsMark[]>([]);
   const [toolId, setToolId] = useState<string | null>(null);
+  const [preset, setPreset] = useState<{ symbol: string; indicator: IndicatorId; entry: number | null } | null>(null);
   const profile = profiles.find((p) => p.id === activeId);
   const [binEnv, , envReady] = useBinanceEnv();
   const dataEnv = profile?.market === 'binance' ? binEnv : 'production'; // B3 não tem ambiente de teste
@@ -264,6 +265,7 @@ export default function Dashboard() {
                           {l.buy == null && l.sell == null && l.active === 0 && <div className="muted">Sem gatilho a ±15% do preço atual</div>}
                         </div>
                       )}
+                      <button className="follow" title="Abre a calculadora para gravar um teste de mesa com este indicador" onClick={() => { setPreset({ symbol: profile.symbol, indicator: id, entry: l?.buy ?? null }); setToolId('risco'); }}>Acompanhar</button>
                     </div>);
                 })}
                 {!cards.length && <span className="muted">Sem dados suficientes de sinais.</span>}
@@ -277,12 +279,12 @@ export default function Dashboard() {
       {tool && profile && (
         <section className="toolpanel">
           <header><b>{tool.title}</b><button aria-label="Fechar" onClick={() => setToolId(null)}>×</button></header>
-          <div className="toolbody"><tool.Panel ctx={{ market: profile.market, symbol: profile.symbol, timeframe: profile.timeframe, candles, indicators: profile.indicators, onTrades: setTrades }} /></div>
+          <div className="toolbody"><tool.Panel ctx={{ market: profile.market, symbol: profile.symbol, timeframe: profile.timeframe, candles, indicators: profile.indicators, onTrades: setTrades, preset, env: dataEnv }} /></div>
         </section>
       )}
       <nav className="rail" aria-label="Ferramentas">
         {tools.map((t) => (
-          <button key={t.id} title={t.title} aria-label={t.title} className={t.id === toolId ? 'on' : ''} onClick={() => setToolId(t.id === toolId ? null : t.id)}>{t.icon}</button>
+          <button key={t.id} title={t.title} aria-label={t.title} className={t.id === toolId ? 'on' : ''} onClick={() => { setPreset(null); setToolId(t.id === toolId ? null : t.id); }}>{t.icon}</button>
         ))}
       </nav>
     </div>

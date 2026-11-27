@@ -7,13 +7,19 @@ import type { MarketId } from '@/lib/markets';
 import TradePanel from './TradePanel';
 import NewsPanel from './NewsPanel';
 import RiskPanel from './RiskPanel';
+import JournalPanel from './JournalPanel';
+import type { IndicatorId } from '@/lib/indicators';
 
 /** Contexto repassado a cada ferramenta da barra lateral (a aba/ativo atual). */
 export type ToolCtx = {
   market: MarketId; symbol: string; timeframe: string;
+  /** Ambiente dos dados na Binance. */
+  env?: string;
   candles: Candle[]; indicators: string[];
   /** A simulação publica as operações para o gráfico desenhar (null limpa). */
   onTrades?: (t: Trade[] | null) => void;
+  /** Preenchimento vindo de um cartão de indicador (“Acompanhar”). */
+  preset?: { symbol: string; indicator: IndicatorId; entry: number | null } | null;
 };
 
 /** `markets`: em quais mercados a ferramenta aparece (ausente = todos). */
@@ -45,6 +51,12 @@ export const TOOLS: Tool[] = [
     title: 'Calculadora de risco',
     icon: svg(<><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" /></>),
     Panel: RiskPanel,
+  },
+  {
+    id: 'diario',
+    title: 'Diário de operações',
+    icon: svg(<><path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6Z" /><path d="M6 3v18M10 8h5M10 12h5M4 7h2M4 12h2M4 17h2" /></>),
+    Panel: JournalPanel,
   },
   {
     id: 'noticias',

@@ -83,3 +83,12 @@ CREATE TABLE history_import (
 CREATE TABLE history_status (
   symbol TEXT PRIMARY KEY, state TEXT NOT NULL, detail TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE journal (
+  id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL, market TEXT NOT NULL, env TEXT NOT NULL DEFAULT 'production', symbol TEXT NOT NULL, timeframe TEXT, indicator TEXT, exit_rule TEXT,
+  stop_loss DOUBLE PRECISION, stop_gain DOUBLE PRECISION, capital DOUBLE PRECISION, risk_pct DOUBLE PRECISION, step DOUBLE PRECISION,
+  ref_time DOUBLE PRECISION, note TEXT, status TEXT NOT NULL, reason TEXT,
+  signal_time DOUBLE PRECISION, entry_time DOUBLE PRECISION, entry_price DOUBLE PRECISION, qty DOUBLE PRECISION,
+  exit_time DOUBLE PRECISION, exit_price DOUBLE PRECISION, last_price DOUBLE PRECISION,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now());

@@ -1,4 +1,7 @@
 /** Tamanho de posição para uma COMPRA com stop. Funções puras. */
+/** Aceita "1.234,56", "1234,56" e "1234.56"; vazio = NaN. */
+export const parseNum = (v: string) => (v.trim() ? Number(v.includes(',') ? v.replace(/\./g, '').replace(',', '.') : v) : NaN);
+
 export type RiskInput = {
   capital: number; riskPct: number; entry: number; stop: number; target?: number | null;
   /** Menor passo de quantidade: 100 no lote padrão da B3, 1 no fracionário, 0.00001 em cripto. */
