@@ -5,6 +5,7 @@ import type { Candle } from '@/lib/types';
 import type { Trade } from '@/lib/backtest';
 import type { MarketId } from '@/lib/markets';
 import TradePanel from './TradePanel';
+import NewsPanel from './NewsPanel';
 
 /** Contexto repassado a cada ferramenta da barra lateral (a aba/ativo atual). */
 export type ToolCtx = {
@@ -37,6 +38,12 @@ export const TOOLS: Tool[] = [
     title: 'Simulação de operações',
     icon: svg(<><path d="M3 3v18h18" /><path d="m7 15 4-5 3 3 5-7" /></>),
     Panel: SimulationPanel,
+  },
+  {
+    id: 'noticias',
+    title: 'Notícias',
+    icon: svg(<><path d="M4 5h13v13a1 1 0 0 0 1 1H6a2 2 0 0 1-2-2Z" /><path d="M17 9h3v8a2 2 0 0 1-2 2M7 9h7M7 12h7M7 15h4" /></>),
+    Panel: NewsPanel,
   },
   {
     id: 'operar',

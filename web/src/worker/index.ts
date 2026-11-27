@@ -1,6 +1,7 @@
 import { pool } from '../lib/db';
 import { getCandles } from '../lib/candles';
 import { rsi } from '../lib/indicators';
+import { NEWS_EVERY_MS, syncNews } from '../lib/news/collect';
 import { latestSignal, signalBody, signalKey, signalTitle, validBells } from '../lib/signal-watch';
 import { ensureSchema } from '../lib/schema';
 import type { Timeframe } from '../lib/types';
@@ -95,7 +96,21 @@ async function syncHistory() {
   }
 }
 
+/** Coleta notícias do mercado e dos papéis das abas e alertas, para ir formando histórico. */
+async function newsTick() {
+  await ensureSchema();
+  const { rows } = await pool.query(`SELECT market, symbol FROM profiles UNION SELECT market, symbol FROM alerts WHERE active`);
+  const targets = [{ market: 'b3', symbol: '' }, { market: 'binance', symbol: '' }, ...rows];
+  for (const t of targets) {
+    try { for (const e of await syncNews(t.market as MarketId, t.symbol)) console.error('notícias', t.market, t.symbol || 'geral', e); }
+    catch (e) { console.error('notícias', t.market, t.symbol || 'geral', (e as Error).message); }
+    await sleep(1000);
+  }
+}
+
 console.log('worker iniciado');
+setInterval(() => newsTick().catch(console.error), NEWS_EVERY_MS + 5000); // um pouco depois do limite de 15 min
+newsTick().catch(console.error);
 setInterval(() => syncHistory().catch(console.error), SYNC_MS);
 syncHistory().catch(console.error);
 setInterval(() => tick().catch(console.error), INTERVAL_MS);

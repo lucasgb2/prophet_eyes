@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Chart, { type ChartOrder } from './Chart';
+import Chart, { type ChartOrder, type NewsMark } from './Chart';
 import SymbolInput from './SymbolInput';
 import MarketLogo from './MarketLogo';
 import { TOOLS } from './tools/registry';
@@ -16,6 +16,7 @@ import { triggerLevels } from '@/lib/levels';
 import { TIMEFRAMES, type Candle, type Timeframe } from '@/lib/types';
 import type { Suggestion } from '@/lib/suggest';
 import type { Trade } from '@/lib/backtest';
+import type { NewsResponse } from '@/lib/news/types';
 
 type Profile = { id: number; name: string; market: MarketId; symbol: string; timeframe: string; indicators: string[] };
 type Quote = { price: number; changePct: number | null };
@@ -26,6 +27,8 @@ export default function Dashboard() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
+  // de qual mercado/papel/timeframe são os candles na tela (não o selecionado, que muda antes de os dados chegarem)
+  const [candlesKey, setCandlesKey] = useState('');
   const [sugg, setSugg] = useState<Suggestion[]>([]);
   const [err, setErr] = useState('');
   const [live, setLive] = useState(false);
@@ -38,6 +41,8 @@ export default function Dashboard() {
   const [freeB3, setFreeB3] = useState<string[]>([]); // papéis de teste da brapi, sem limite de timeframe
   const blocked = (tf: string, p: { market: string; symbol: string }) => p.market === 'b3' && planB3 != null && !planB3.includes(tf) && !freeB3.includes(p.symbol); // timeframes liberados no plano da brapi (null = sem restrição conhecida)
   const [signals, setSignals] = useState(true);
+  const [showNews, setShowNews] = useState(false); // marcar no gráfico os candles com notícia do papel
+  const [newsMarks, setNewsMarks] = useState<NewsMark[]>([]);
   const [toolId, setToolId] = useState<string | null>(null);
   const profile = profiles.find((p) => p.id === activeId);
   const [binEnv, , envReady] = useBinanceEnv();
@@ -50,7 +55,7 @@ export default function Dashboard() {
   useEffect(() => {
     j('/api/profiles').then((r) => r.json()).then((ps: Profile[]) => { setProfiles(ps); setActiveId(ps[0]?.id ?? null); });
     j('/api/plan').then((r) => r.json()).then((b) => { setPlanB3(Array.isArray(b.b3) ? b.b3 : null); setFreeB3(Array.isArray(b.free) ? b.free : []); }).catch(() => {});
-    try { setLive(localStorage.getItem('prophet_live') === '1'); setSignals(localStorage.getItem('prophet_signals') !== '0'); } catch {}
+    try { setLive(localStorage.getItem('prophet_live') === '1'); setSignals(localStorage.getItem('prophet_signals') !== '0'); setShowNews(localStorage.getItem('prophet_news') === '1'); } catch {}
   }, []);
 
   const key = profile && envReady && `${profile.market}|${dataEnv}|${profile.symbol}|${profile.timeframe}`;
@@ -63,7 +68,7 @@ export default function Dashboard() {
     const q = `market=${profile.market}&symbol=${profile.symbol}&tf=${profile.timeframe}${q_env}`;
     // Se o usuário trocar de papel/timeframe antes da resposta chegar, a resposta velha é descartada
     let stale = false;
-    j(`/api/candles?${q}`).then(async (r) => { const body = await r.json(); if (stale) return; if (r.ok) setCandles(body); else { setCandles([]); setErr(body.error); } }).catch(() => {});
+    j(`/api/candles?${q}`).then(async (r) => { const body = await r.json(); if (stale) return; if (r.ok) { setCandles(body); setCandlesKey(key || ''); } else { setCandles([]); setErr(body.error); } }).catch(() => {});
     j(`/api/suggest?${q}`).then(async (r) => { const body = await r.json(); if (!stale && r.ok) { setSugg(body); setUpdatedAt(new Date()); } }).catch(() => {});
     return () => { stale = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,6 +79,25 @@ export default function Dashboard() {
   // Binance: websocket público (tempo real); o polling HTTP só roda enquanto o websocket não estiver conectado
   const stream = useBinanceStream(live && market === 'binance' && envReady, symbol, profile?.timeframe, dataEnv);
   const viaWs = market === 'binance' && stream.connected && stream.price != null;
+
+  // Notícias no gráfico: cada notícia cai no primeiro candle que podia reagir a ela
+  const timeframe = profile?.timeframe;
+  useEffect(() => {
+    setNewsMarks([]);
+    if (!showNews || !symbol || !market || !timeframe) return;
+    let stop = false;
+    const load = async () => {
+      const r = await j(`/api/news?market=${market}&symbol=${symbol}&tf=${timeframe}`).catch(() => null);
+      if (!r?.ok || stop) return;
+      const body: NewsResponse = await r.json();
+      if (stop) return;
+      const count = new Map<number, number>();
+      for (const n of body.symbol) if (n.reaction?.firstTime != null) count.set(n.reaction.firstTime, (count.get(n.reaction.firstTime) ?? 0) + 1);
+      setNewsMarks([...count].map(([time, c]) => ({ time, count: c })));
+    };
+    load(); const t = setInterval(load, 5 * 60_000);
+    return () => { stop = true; clearInterval(t); };
+  }, [showNews, symbol, market, timeframe]);
 
   // Candle novo (o anterior fechou): busca os candles e refaz o backtest/gatilhos, sem limpar a tela
   const refreshing = useRef(false);
@@ -186,6 +210,7 @@ export default function Dashboard() {
             <div className="bar">
               <span className="muted">Indicadores:</span>
               <button className={signals ? 'on' : ''} onClick={toggleSignals} title="Setas de compra/venda no gráfico para os indicadores ligados">Sinais no gráfico</button>
+              <button className={showNews ? 'on' : ''} title="Marca no gráfico os candles com notícia do papel (lista no painel Notícias)" onClick={() => { const v = !showNews; setShowNews(v); try { localStorage.setItem('prophet_news', v ? '1' : '0'); } catch {} }}>Notícias no gráfico</button>
               <span className="muted">|</span>
               {INDICATOR_IDS.map((id) => (
                 <span className="indgrp" key={id}>
@@ -198,7 +223,7 @@ export default function Dashboard() {
             </div>
             <div className="workspace">
               <div className="panel chartcol">
-                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart viewKey={key || ''} market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? shown?.price : null} liveCandle={live && viaWs ? stream.candle : null} showSignals={signals} trades={trades} orders={openOrders} />}
+                {err ? <span style={{ color: '#f85149' }}>{err}</span> : <Chart viewKey={candlesKey} market={profile.market} candles={candles} indicators={profile.indicators} livePrice={live ? shown?.price : null} liveCandle={live && viaWs ? stream.candle : null} showSignals={signals} trades={trades} orders={openOrders} news={newsMarks} />}
               </div>
               <aside className="panel suggest">
                 <div className="sughead"><b>Indicadores sugeridos</b><button className="help" aria-label="Como ler os indicadores sugeridos" title="Como ler os indicadores sugeridos" onClick={() => setRankHelp(true)}>?</button></div>

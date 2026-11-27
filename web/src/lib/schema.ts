@@ -31,6 +31,16 @@ async function run() {
         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         key TEXT NOT NULL, sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         PRIMARY KEY (user_id, key));
+      CREATE TABLE IF NOT EXISTS news (
+        id SERIAL PRIMARY KEY, market TEXT NOT NULL, symbol TEXT NOT NULL DEFAULT '', url TEXT NOT NULL,
+        title TEXT NOT NULL, source TEXT, kind TEXT NOT NULL, category TEXT NOT NULL,
+        published_at TIMESTAMPTZ NOT NULL, date_only BOOLEAN NOT NULL DEFAULT false, fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (market, symbol, url));
+      ALTER TABLE news ADD COLUMN IF NOT EXISTS source_url TEXT;
+      CREATE INDEX IF NOT EXISTS news_feed ON news (market, symbol, published_at DESC);
+      CREATE TABLE IF NOT EXISTS news_sync (
+        market TEXT NOT NULL, symbol TEXT NOT NULL, synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (market, symbol));
       CREATE TABLE IF NOT EXISTS exchange_credentials (
         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         exchange TEXT NOT NULL, env TEXT NOT NULL,

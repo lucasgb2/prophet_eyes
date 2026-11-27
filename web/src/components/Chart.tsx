@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts';
+import { createChart, type IChartApi, type ISeriesApi, type SeriesMarker, type UTCTimestamp } from 'lightweight-charts';
 import { INDICATORS, INDICATOR_IDS, sma, ema, rsi, macd, bollinger, donchian, vwap, stochastic, adx, obv } from '@/lib/indicators';
 import type { Candle } from '@/lib/types';
+import { crosshairLabel, isIntraday, tickLabel } from '@/lib/chart-time';
 import type { Trade } from '@/lib/backtest';
 import { pricePrecision, type MarketId } from '@/lib/markets';
 
@@ -10,7 +11,9 @@ const line = (t: number[], s: (number | null)[]) => t.flatMap((time, i) => (s[i]
 
 export type ChartOrder = { orderId: number; side: string; type: string; price: string; stopPrice?: string; origQty: string; executedQty: string };
 
-export default function Chart({ viewKey = '', orders = [], candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3', liveCandle = null }: { viewKey?: string; orders?: ChartOrder[]; liveCandle?: Candle | null; market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
+export type NewsMark = { time: number; count: number };
+
+export default function Chart({ news = [], viewKey = '', orders = [], candles, indicators, livePrice, showSignals = true, trades = null, market = 'b3', liveCandle = null }: { news?: NewsMark[]; viewKey?: string; orders?: ChartOrder[]; liveCandle?: Candle | null; market?: MarketId; candles: Candle[]; indicators: string[]; livePrice?: number | null; showSignals?: boolean; trades?: Trade[] | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mainRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   // zoom/posição do último gráfico, medidos a partir do candle mais recente, para não zerar quando o gráfico é refeito
@@ -22,11 +25,15 @@ export default function Chart({ viewKey = '', orders = [], candles, indicators, 
   useEffect(() => {
     if (!ref.current || !candles.length) return;
     const el = ref.current;
+    const intraday = isIntraday(candles.map((c) => c.time));
     const chart: IChartApi = createChart(el, {
       autoSize: true, // acompanha o tamanho do contêiner (largura e altura)
       layout: { background: { color: '#161b22' }, textColor: '#8b949e' },
       grid: { vertLines: { color: '#222a34' }, horzLines: { color: '#222a34' } },
-      timeScale: { timeVisible: true },
+      // intraday em horário de Brasília; diário/semanal/mensal ficam só com a data (padrão da biblioteca)
+      ...(intraday
+        ? { timeScale: { timeVisible: true, tickMarkFormatter: (time: unknown, type: number) => tickLabel(time as number, type) }, localization: { timeFormatter: (time: unknown) => crosshairLabel(time as number) } }
+        : { timeScale: { timeVisible: false } }),
     });
     const t = candles.map((c) => c.time), p = candles.map((c) => c.close);
     const main = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350' });
@@ -83,6 +90,8 @@ export default function Chart({ viewKey = '', orders = [], candles, indicators, 
       chart.addLineSeries({ color: '#79c0ff', lineWidth: 1, priceScaleId: 'obv' }).setData(line(t, obv(candles)));
       pane('obv', H);
     }
+    // um só setMarkers: sinais (ou operações) mais as notícias
+    const all: SeriesMarker<UTCTimestamp>[] = [];
     if (trades) {
       // Simulação ativa: mostra entradas (azul) e saídas (verde = ganho, vermelha = perda) em vez das setas dos indicadores
       const marks = trades.flatMap((t) => [
@@ -90,7 +99,7 @@ export default function Chart({ viewKey = '', orders = [], candles, indicators, 
         { time: t.exitTime as UTCTimestamp, position: 'aboveBar' as const, shape: 'arrowDown' as const, color: t.retPct > 0 ? '#26a69a' : '#ef5350', text: `${t.retPct > 0 ? '+' : ''}${t.retPct.toFixed(1)}%${t.open ? ' (aberta)' : ''}` },
       ]);
       const known = new Set(t); // ignora operações de outro papel/timeframe enquanto os candles não atualizam
-      main.setMarkers(marks.filter((m) => known.has(m.time as number)).sort((a, b) => (a.time as number) - (b.time as number)));
+      all.push(...marks.filter((m) => known.has(m.time as number)));
     } else if (showSignals) {
       // Pontos de sinal: seta verde (compra) abaixo do candle, vermelha (venda) acima, com o nome do indicador
       const marks = INDICATOR_IDS.filter((id) => indicators.includes(id)).flatMap((id) =>
@@ -101,8 +110,11 @@ export default function Chart({ viewKey = '', orders = [], candles, indicators, 
           color: sg > 0 ? '#26a69a' : '#ef5350',
           text: `🔔 ${id.toUpperCase()}`, // sino amarelo (emoji) destaca o candle com sinal; a sigla diz qual indicador
         }]));
-      main.setMarkers(marks.sort((a, b) => (a.time as number) - (b.time as number)));
+      all.push(...marks);
     }
+    const inChart = new Set(t);
+    for (const n of news) if (inChart.has(n.time)) all.push({ time: n.time as UTCTimestamp, position: 'aboveBar', shape: 'circle', color: '#58a6ff', size: 0.5, text: n.count > 1 ? `📰 ${n.count}` : '📰' });
+    main.setMarkers(all.sort((a, b) => (a.time as number) - (b.time as number)));
     main.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: bottom + 0.03 } });
     const end = candles.length - 1, saved = viewRef.current;
     if (saved && saved.key === viewKey) chart.timeScale().setVisibleLogicalRange({ from: end + saved.from, to: end + saved.to });
@@ -112,7 +124,7 @@ export default function Chart({ viewKey = '', orders = [], candles, indicators, 
       viewRef.current = r ? { key: viewKey, from: r.from - end, to: r.to - end } : null;
       chart.remove();
     };
-  }, [candles, indicators, showSignals, trades, market]);
+  }, [candles, indicators, showSignals, trades, market, news]);
   // Preço real: atualiza só o último candle (visual), sem tocar nos dados guardados nem nos indicadores.
   useEffect(() => {
     const last = candles.at(-1);
@@ -121,7 +133,7 @@ export default function Chart({ viewKey = '', orders = [], candles, indicators, 
     if (liveCandle && liveCandle.time >= last.time) { mainRef.current.update({ ...liveCandle, time: liveCandle.time as UTCTimestamp }); return; }
     if (livePrice == null) { mainRef.current.update({ ...last, time: last.time as UTCTimestamp }); return; }
     mainRef.current.update({ time: last.time as UTCTimestamp, open: last.open, high: Math.max(last.high, livePrice), low: Math.min(last.low, livePrice), close: livePrice });
-  }, [livePrice, liveCandle, candles, indicators]);
+  }, [livePrice, liveCandle, candles, indicators, showSignals, trades, news]);
   // Ordens abertas (Binance): uma linha de preço por ordem; recriada quando o gráfico é refeito
   useEffect(() => {
     const main = mainRef.current;
@@ -134,20 +146,21 @@ export default function Chart({ viewKey = '', orders = [], candles, indicators, 
       return [main.createPriceLine({ price, color: buy ? '#26a69a' : '#ef5350', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: `${kind} ${qty}${done > 0 ? ` (${done} exec.)` : ''}` })];
     });
     return () => { for (const l of lines) { try { main.removePriceLine(l); } catch {} } };
-  }, [orders, candles, indicators, showSignals, trades, market]);
-  const mode = trades ? 'trades' : showSignals && active.length ? 'signals' : null;
+  }, [orders, candles, indicators, showSignals, trades, market, news]);
+  const mode = trades ? 'trades' : showSignals && active.length ? 'signals' : news.length ? 'news' : null;
   return (
     <>
       <div ref={ref} className="chartbox" />
       {mode && (
         <div className="legend">
           <button className="legend-head" onClick={toggleLegend} aria-expanded={legendOpen}>Legenda {legendOpen ? '▾' : '▸'}</button>
-          {legendOpen && (mode === 'signals' ? (
+          {legendOpen && (mode === 'news' ? <ul><li>📰 Notícia do papel neste candle (o número indica quantas). Detalhes no painel Notícias</li></ul> : mode === 'signals' ? (
             <ul>
               <li><span className="lg-bell">🔔</span> Candle com sinal; a sigla ao lado é o indicador que o gerou</li>
               <li><span style={{ color: '#26a69a' }}>▲</span> Seta verde, abaixo do candle: sinal de <b>compra</b></li>
               <li><span style={{ color: '#ef5350' }}>▼</span> Seta vermelha, acima do candle: sinal de <b>venda</b></li>
               {active.map((id) => <li key={id} className="lg-ind"><b>{id.toUpperCase()}</b> = {INDICATORS[id].label}</li>)}
+              {news.length > 0 && <li>📰 Notícia do papel neste candle (o número indica quantas). Detalhes no painel Notícias</li>}
               <li className="lg-note">É a regra do indicador, não recomendação.</li>
             </ul>
           ) : (
@@ -155,6 +168,7 @@ export default function Chart({ viewKey = '', orders = [], candles, indicators, 
               <li><span style={{ color: '#2f81f7' }}>▲</span> Seta azul: <b>entrada</b> (compra na abertura do candle seguinte)</li>
               <li><span style={{ color: '#26a69a' }}>▼</span> Seta verde: <b>saída com ganho</b> (% da operação)</li>
               <li><span style={{ color: '#ef5350' }}>▼</span> Seta vermelha: <b>saída com perda</b></li>
+              {news.length > 0 && <li>📰 Notícia do papel neste candle (o número indica quantas). Detalhes no painel Notícias</li>}
               <li className="lg-note">“(aberta)” = operação ainda em andamento.</li>
             </ul>
           ))}
