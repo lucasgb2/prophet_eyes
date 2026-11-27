@@ -75,6 +75,8 @@ img.srclogo { background:#fff; }
 .newssource { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .newstime { flex:none; background:#2f81f722; border:1px solid #2f81f755; border-radius:10px; padding:1px 8px; color:var(--fg); } .newstime b { color:#79b8ff; }
 .newswarn { color:#f0883e; border:1px solid #f0883e66; border-radius:4px; padding:0 4px; font-size:11px; }
+.newsbell label { display:block; font-size:12px; margin-top:6px; } .newsbell p { margin:6px 0 0; font-size:12px; }
+.newscats { display:grid; grid-template-columns:1fr 1fr; column-gap:8px; }
 button.newshelp { width:18px; height:18px; padding:0; border-radius:50%; font-size:11px; line-height:1; background:transparent; color:var(--mut); }
 .newstag { border:1px solid #e3b341; color:#e3b341; border-radius:4px; padding:0 4px; margin-right:6px; font-size:11px; }
 .newsmove { display:flex; flex-wrap:wrap; gap:10px; font-size:12px; margin-top:4px; } .newsmove .hot { color:#e3b341; }

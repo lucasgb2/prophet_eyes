@@ -41,6 +41,11 @@ async function run() {
       CREATE TABLE IF NOT EXISTS news_sync (
         market TEXT NOT NULL, symbol TEXT NOT NULL, synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         PRIMARY KEY (market, symbol));
+      CREATE TABLE IF NOT EXISTS news_bells (
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        market TEXT NOT NULL, symbol TEXT NOT NULL, facts BOOLEAN NOT NULL DEFAULT true, categories JSONB NOT NULL DEFAULT '[]',
+        since TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, market, symbol));
       CREATE TABLE IF NOT EXISTS exchange_credentials (
         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         exchange TEXT NOT NULL, env TEXT NOT NULL,

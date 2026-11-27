@@ -5,6 +5,7 @@ import type { Caveat, Move } from '@/lib/news/reaction';
 import type { NewsItem, NewsResponse } from '@/lib/news/types';
 import type { ToolCtx } from './registry';
 import SourceLogo from './SourceLogo';
+import NewsBell from './NewsBell';
 import NewsHelpModal from './NewsHelpModal';
 import { dateLabel, relativeTime } from '@/lib/news/time';
 
@@ -56,6 +57,7 @@ export default function NewsPanel({ ctx }: { ctx: ToolCtx }) {
         <button className={tab === 'symbol' ? 'on' : ''} onClick={() => setTab('symbol')}>{ctx.symbol}</button>
         <button className={tab === 'market' ? 'on' : ''} onClick={() => setTab('market')}>Mercado</button>
       </div>
+      {tab === 'symbol' && <NewsBell market={ctx.market} symbol={ctx.symbol} />}
       {err && <p className="warn">{err}</p>}
       {!data && !err && <p className="muted">Buscando notícias…</p>}
       {data?.errors.length ? <p className="muted">Fontes com falha agora: {data.errors.join('; ')}</p> : null}

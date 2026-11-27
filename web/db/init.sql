@@ -65,3 +65,11 @@ CREATE TABLE news_sync (
   market TEXT NOT NULL, symbol TEXT NOT NULL, synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (market, symbol)
 );
+
+-- Sino de notícias por papel; "since" evita avisar o que já existia quando o sino foi ligado
+CREATE TABLE news_bells (
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  market TEXT NOT NULL, symbol TEXT NOT NULL, facts BOOLEAN NOT NULL DEFAULT true, categories JSONB NOT NULL DEFAULT '[]',
+  since TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, market, symbol)
+);

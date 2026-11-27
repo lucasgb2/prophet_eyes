@@ -2,6 +2,8 @@ import { pool } from '../lib/db';
 import { getCandles } from '../lib/candles';
 import { rsi } from '../lib/indicators';
 import { NEWS_EVERY_MS, syncNews } from '../lib/news/collect';
+import { pendingNews } from '../lib/news/alerts';
+import { alertKey, dedupeByTitle, groupMessage } from '../lib/news/alert-text';
 import { latestSignal, signalBody, signalKey, signalTitle, validBells } from '../lib/signal-watch';
 import { ensureSchema } from '../lib/schema';
 import type { Timeframe } from '../lib/types';
@@ -99,7 +101,7 @@ async function syncHistory() {
 /** Coleta notícias do mercado e dos papéis das abas e alertas, para ir formando histórico. */
 async function newsTick() {
   await ensureSchema();
-  const { rows } = await pool.query(`SELECT market, symbol FROM profiles UNION SELECT market, symbol FROM alerts WHERE active`);
+  const { rows } = await pool.query(`SELECT market, symbol FROM profiles UNION SELECT market, symbol FROM alerts WHERE active UNION SELECT market, symbol FROM news_bells`);
   const targets = [{ market: 'b3', symbol: '' }, { market: 'binance', symbol: '' }, ...rows];
   for (const t of targets) {
     try { for (const e of await syncNews(t.market as MarketId, t.symbol)) console.error('notícias', t.market, t.symbol || 'geral', e); }
@@ -108,7 +110,29 @@ async function newsTick() {
   }
 }
 
+/** Sino de notícias: manda pelo Telegram o que chegou de novo, uma mensagem por papel. */
+async function newsBellTick() {
+  await ensureSchema();
+  const users = (await pool.query(`SELECT DISTINCT u.id, u.telegram_chat_id FROM users u JOIN news_bells b ON b.user_id=u.id WHERE u.telegram_chat_id IS NOT NULL`)).rows;
+  for (const u of users) {
+    try {
+      // registra antes de enviar (é o que impede repetir); desfaz se o envio falhar
+      const claimed = [];
+      for (const n of await pendingNews(u.id)) {
+        if ((await pool.query('INSERT INTO signal_sent(user_id,key) VALUES ($1,$2) ON CONFLICT DO NOTHING', [u.id, alertKey(n)])).rowCount) claimed.push(n);
+      }
+      for (const symbol of new Set(claimed.map((n) => n.symbol))) {
+        const mine = claimed.filter((n) => n.symbol === symbol);
+        const sent = await telegram(u.telegram_chat_id, groupMessage(symbol, dedupeByTitle(mine))).catch(() => false);
+        if (!sent) await pool.query('DELETE FROM signal_sent WHERE user_id=$1 AND key = ANY($2)', [u.id, mine.map(alertKey)]);
+      }
+    } catch (e) { console.error('sino de notícias', u.id, e); }
+  }
+}
+
 console.log('worker iniciado');
+setInterval(() => newsBellTick().catch(console.error), INTERVAL_MS);
+newsBellTick().catch(console.error);
 setInterval(() => newsTick().catch(console.error), NEWS_EVERY_MS + 5000); // um pouco depois do limite de 15 min
 newsTick().catch(console.error);
 setInterval(() => syncHistory().catch(console.error), SYNC_MS);

@@ -7,6 +7,7 @@ import { TOOLS } from './tools/registry';
 import IndicatorHelpModal from './IndicatorHelpModal';
 import RankingHelpModal from './RankingHelpModal';
 import { useSignalNotifier } from './useSignalNotifier';
+import { useNewsNotifier } from './useNewsNotifier';
 import { useBinanceEnv } from './useBinanceEnv';
 import { useNewCandle } from './useNewCandle';
 import { useBinanceStream } from './useBinanceStream';
@@ -49,6 +50,7 @@ export default function Dashboard() {
   const dataEnv = profile?.market === 'binance' ? binEnv : 'production'; // B3 não tem ambiente de teste
   const q_env = `&env=${dataEnv}`;
   const notifier = useSignalNotifier(profile, dataEnv, envReady);
+  useNewsNotifier();
   const tools = TOOLS.filter((t) => !t.markets || (profile && t.markets.includes(profile.market)));
   const tool = tools.find((t) => t.id === toolId);
 
