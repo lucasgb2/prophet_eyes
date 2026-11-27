@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart, { type ChartOrder, type NewsMark } from './Chart';
 import SymbolInput from './SymbolInput';
 import MarketLogo from './MarketLogo';
+import Modal from './Modal';
 import HistoryBadge from './HistoryBadge';
 import { TOOLS } from './tools/registry';
 import IndicatorHelpModal from './IndicatorHelpModal';
@@ -276,12 +277,14 @@ export default function Dashboard() {
       </div>
       {rankHelp && profile && <RankingHelpModal symbol={profile.symbol} timeframe={profile.timeframe} onClose={() => setRankHelp(false)} />}
       {helpId && <IndicatorHelpModal id={helpId} onClose={() => setHelpId(null)} />}
-      {tool && profile && (
+      {tool && profile && (tool.modal ? (
+        <Modal title={tool.title} wide onClose={() => setToolId(null)}><tool.Panel ctx={{ market: profile.market, symbol: profile.symbol, timeframe: profile.timeframe, candles, indicators: profile.indicators, onTrades: setTrades, preset, env: dataEnv, timeframes: TIMEFRAMES.filter((t) => !blocked(t, profile)) }} /></Modal>
+      ) : (
         <section className="toolpanel">
           <header><b>{tool.title}</b><button aria-label="Fechar" onClick={() => setToolId(null)}>×</button></header>
-          <div className="toolbody"><tool.Panel ctx={{ market: profile.market, symbol: profile.symbol, timeframe: profile.timeframe, candles, indicators: profile.indicators, onTrades: setTrades, preset, env: dataEnv }} /></div>
+          <div className="toolbody"><tool.Panel ctx={{ market: profile.market, symbol: profile.symbol, timeframe: profile.timeframe, candles, indicators: profile.indicators, onTrades: setTrades, preset, env: dataEnv, timeframes: TIMEFRAMES.filter((t) => !blocked(t, profile)) }} /></div>
         </section>
-      )}
+      ))}
       <nav className="rail" aria-label="Ferramentas">
         {tools.map((t) => (
           <button key={t.id} title={t.title} aria-label={t.title} className={t.id === toolId ? 'on' : ''} onClick={() => { setPreset(null); setToolId(t.id === toolId ? null : t.id); }}>{t.icon}</button>

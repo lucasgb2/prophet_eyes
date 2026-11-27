@@ -61,6 +61,12 @@ async function run() {
         signal_time DOUBLE PRECISION, entry_time DOUBLE PRECISION, entry_price DOUBLE PRECISION, qty DOUBLE PRECISION,
         exit_time DOUBLE PRECISION, exit_price DOUBLE PRECISION, last_price DOUBLE PRECISION,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+      CREATE TABLE IF NOT EXISTS robots (
+        id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        market TEXT NOT NULL, env TEXT NOT NULL DEFAULT 'production', symbol TEXT NOT NULL, timeframe TEXT NOT NULL, indicator TEXT NOT NULL,
+        capital DOUBLE PRECISION NOT NULL, stop_pct DOUBLE PRECISION, gain_pct DOUBLE PRECISION, step DOUBLE PRECISION NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running', state JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(), stopped_at TIMESTAMPTZ);
       CREATE TABLE IF NOT EXISTS exchange_credentials (
         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         exchange TEXT NOT NULL, env TEXT NOT NULL,

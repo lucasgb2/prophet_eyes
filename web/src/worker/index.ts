@@ -5,6 +5,9 @@ import { NEWS_EVERY_MS, syncNews } from '../lib/news/collect';
 import { pendingNews } from '../lib/news/alerts';
 import { historyYears, importHistory, jumpedSymbols, pendingSymbols } from '../lib/cotahist-import';
 import { refreshJournal } from '../lib/journal-store';
+import { runRobots } from '../lib/robot-store';
+import { fmtPrice } from '../lib/markets';
+import { INDICATORS } from '../lib/indicators';
 import { alertKey, dedupeByTitle, groupMessage } from '../lib/news/alert-text';
 import { latestSignal, signalBody, signalKey, signalTitle, validBells } from '../lib/signal-watch';
 import { ensureSchema } from '../lib/schema';
@@ -163,5 +166,24 @@ tick().catch(console.error);
 const journalTick = () => ensureSchema().then(() => refreshJournal()).catch(console.error);
 setInterval(journalTick, INTERVAL_MS);
 journalTick();
+/** Robôs de teste: avança e avisa compras e vendas simuladas pelo Telegram. */
+let robotBusy = false;
+async function robotTick() {
+  if (robotBusy) return;
+  robotBusy = true;
+  try {
+    await ensureSchema();
+    await runRobots(async (userId, r, e) => {
+      const chat = (await pool.query('SELECT telegram_chat_id FROM users WHERE id=$1', [userId])).rows[0]?.telegram_chat_id;
+      if (!chat) return;
+      const px = (n: number) => fmtPrice(r.market, r.symbol, n);
+      const what = e.type === 'buy' ? `COMPRA simulada a ${px(e.price)}`
+        : `VENDA simulada a ${px(e.trade.exitPrice)} (${e.trade.reason}): ${e.trade.pct >= 0 ? '+' : ''}${e.trade.pct.toFixed(2).replace('.', ',')}%`;
+      await telegram(chat, `🤖 Robô de teste · ${r.symbol} · ${r.timeframe} · ${INDICATORS[r.indicator].label}\n${what}\nSimulação: nenhuma ordem foi enviada.`);
+    });
+  } catch (e) { console.error('robô', e); } finally { robotBusy = false; }
+}
+setInterval(robotTick, INTERVAL_MS);
+robotTick();
 setInterval(() => signalTick().catch(console.error), INTERVAL_MS);
 signalTick().catch(console.error);

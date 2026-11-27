@@ -1,18 +1,21 @@
 import type { ComponentType, ReactNode } from 'react';
 import TelegramPanel from './TelegramPanel';
 import SimulationPanel from './SimulationPanel';
-import type { Candle } from '@/lib/types';
+import type { Candle, Timeframe } from '@/lib/types';
 import type { Trade } from '@/lib/backtest';
 import type { MarketId } from '@/lib/markets';
 import TradePanel from './TradePanel';
 import NewsPanel from './NewsPanel';
 import RiskPanel from './RiskPanel';
 import JournalPanel from './JournalPanel';
+import RobotPanel from './RobotPanel';
 import type { IndicatorId } from '@/lib/indicators';
 
 /** Contexto repassado a cada ferramenta da barra lateral (a aba/ativo atual). */
 export type ToolCtx = {
   market: MarketId; symbol: string; timeframe: string;
+  /** Timeframes que o papel permite (o plano da brapi limita alguns). */
+  timeframes?: Timeframe[];
   /** Ambiente dos dados na Binance. */
   env?: string;
   candles: Candle[]; indicators: string[];
@@ -23,7 +26,7 @@ export type ToolCtx = {
 };
 
 /** `markets`: em quais mercados a ferramenta aparece (ausente = todos). */
-export type Tool = { id: string; title: string; icon: ReactNode; markets?: MarketId[]; Panel: ComponentType<{ ctx: ToolCtx }> };
+export type Tool = { id: string; title: string; icon: ReactNode; markets?: MarketId[]; /** Abre numa janela larga em vez do painel lateral. */ modal?: boolean; Panel: ComponentType<{ ctx: ToolCtx }> };
 
 const svg = (d: ReactNode) => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -57,6 +60,13 @@ export const TOOLS: Tool[] = [
     title: 'Diário de operações',
     icon: svg(<><path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6Z" /><path d="M6 3v18M10 8h5M10 12h5M4 7h2M4 12h2M4 17h2" /></>),
     Panel: JournalPanel,
+  },
+  {
+    id: 'robo',
+    title: 'Robô de teste',
+    modal: true,
+    icon: svg(<><rect x="4" y="8" width="16" height="11" rx="2" /><path d="M12 4v4M9 13h.01M15 13h.01M9 16h6M2 13h2M20 13h2" /></>),
+    Panel: RobotPanel,
   },
   {
     id: 'noticias',

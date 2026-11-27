@@ -2,7 +2,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
 /** Janela modal simples: fecha com Esc, clique fora ou no ×, e devolve o foco a quem a abriu. */
-export default function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export default function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: ReactNode }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   // onClose muda a cada render do pai; guardá-lo num ref evita refazer o efeito (que devolveria o foco ao × e rolaria o modal)
   const close = useRef(onClose);
@@ -16,7 +16,7 @@ export default function Modal({ title, onClose, children }: { title: string; onC
   }, []);
   return (
     <div className="modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={wide ? 'modal wide' : 'modal'} role="dialog" aria-modal="true" aria-label={title}>
         <header><b>{title}</b><button ref={closeRef} aria-label="Fechar" onClick={onClose}>×</button></header>
         {children}
       </div>
