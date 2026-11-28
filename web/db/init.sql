@@ -99,3 +99,6 @@ CREATE TABLE robots (
   capital DOUBLE PRECISION NOT NULL, stop_pct DOUBLE PRECISION, gain_pct DOUBLE PRECISION, step DOUBLE PRECISION NOT NULL,
   status TEXT NOT NULL DEFAULT 'running', state JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(), stopped_at TIMESTAMPTZ);
+
+-- Última vez que cada tarefa (e o backup) deu certo; o vigia avisa quando uma para
+CREATE TABLE heartbeats (name TEXT PRIMARY KEY, ok_at TIMESTAMPTZ, detail TEXT, alerted_at TIMESTAMPTZ);

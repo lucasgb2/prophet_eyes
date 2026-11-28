@@ -11,21 +11,14 @@ import { INDICATORS } from '../lib/indicators';
 import { alertKey, dedupeByTitle, groupMessage } from '../lib/news/alert-text';
 import { latestSignal, signalBody, signalKey, signalTitle, validBells } from '../lib/signal-watch';
 import { ensureSchema } from '../lib/schema';
+import { telegram } from '../lib/telegram';
+import { beat } from '../lib/heartbeat';
+import type { TaskName } from '../lib/health';
 import type { Timeframe } from '../lib/types';
 import type { MarketId } from '../lib/markets';
 
 const INTERVAL_MS = 60_000;
 const COOLDOWN_MS = 60 * 60_000; // não repete o mesmo alerta em menos de 1h
-
-async function telegram(chatId: string, text: string): Promise<boolean> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) { console.warn('TELEGRAM_BOT_TOKEN não definido; alerta não enviado'); return false; }
-  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text }),
-  });
-  if (!r.ok) console.error('Telegram falhou', r.status);
-  return r.ok;
-}
 
 async function tick() {
   await ensureSchema();
@@ -97,11 +90,21 @@ async function syncHistory() {
     UNION SELECT market, symbol, timeframe FROM alerts WHERE active
     UNION SELECT market, symbol, '1d' FROM profiles
     UNION SELECT market, symbol, '1d' FROM alerts WHERE active`);
+  const total = new Map<string, number>(), failed = new Map<string, number>(); // por mercado
   for (const r of rows) {
-    try { await getCandles(r.symbol, r.timeframe as Timeframe, r.market as MarketId); } catch (e) { console.error('sync', r.market, r.symbol, r.timeframe, (e as Error).message); }
+    total.set(r.market, (total.get(r.market) ?? 0) + 1);
+    const fail = () => failed.set(r.market, (failed.get(r.market) ?? 0) + 1);
+    // stale = a fonte falhou e só havia o que já estava guardado
+    try { if ((await getCandles(r.symbol, r.timeframe as Timeframe, r.market as MarketId)).stale) fail(); }
+    catch (e) { fail(); console.error('sync', r.market, r.symbol, r.timeframe, (e as Error).message); }
     await sleep(500); // não dispara tudo de uma vez na brapi
   }
+  const down = [...total].filter(([m, n]) => failed.get(m) === n).map(([m]) => m);
+  if (down.length) throw new Error(`nenhum candle atualizou em: ${down.join(', ')}`);
 }
+
+/** Só conta como funcionando quando a tarefa termina sem erro; o vigia reclama se isso parar de acontecer. */
+const watched = (name: TaskName, fn: () => Promise<unknown>) => () => fn().then(() => beat(name)).catch((e) => console.error(name, e));
 
 /** Coleta notícias do mercado e dos papéis das abas e alertas, para ir formando histórico. */
 async function newsTick() {
@@ -159,11 +162,13 @@ setInterval(() => newsBellTick().catch(console.error), INTERVAL_MS);
 newsBellTick().catch(console.error);
 setInterval(() => newsTick().catch(console.error), NEWS_EVERY_MS + 5000); // um pouco depois do limite de 15 min
 newsTick().catch(console.error);
-setInterval(() => syncHistory().catch(console.error), SYNC_MS);
-syncHistory().catch(console.error);
-setInterval(() => tick().catch(console.error), INTERVAL_MS);
-tick().catch(console.error);
-const journalTick = () => ensureSchema().then(() => refreshJournal()).catch(console.error);
+const dataTick = watched('dados', syncHistory);
+setInterval(dataTick, SYNC_MS);
+dataTick();
+const alertTick = watched('alertas', tick);
+setInterval(alertTick, INTERVAL_MS);
+alertTick();
+const journalTick = watched('diario', () => ensureSchema().then(() => refreshJournal()));
 setInterval(journalTick, INTERVAL_MS);
 journalTick();
 /** Robôs de teste: avança e avisa compras e vendas simuladas pelo Telegram. */
@@ -181,9 +186,11 @@ async function robotTick() {
         : `VENDA simulada a ${px(e.trade.exitPrice)} (${e.trade.reason}): ${e.trade.pct >= 0 ? '+' : ''}${e.trade.pct.toFixed(2).replace('.', ',')}%`;
       await telegram(chat, `🤖 Robô de teste · ${r.symbol} · ${r.timeframe} · ${INDICATORS[r.indicator].label}\n${what}\nSimulação: nenhuma ordem foi enviada.`);
     });
+    await beat('robos');
   } catch (e) { console.error('robô', e); } finally { robotBusy = false; }
 }
 setInterval(robotTick, INTERVAL_MS);
 robotTick();
-setInterval(() => signalTick().catch(console.error), INTERVAL_MS);
-signalTick().catch(console.error);
+const bellTick = watched('sinais', signalTick);
+setInterval(bellTick, INTERVAL_MS);
+bellTick();

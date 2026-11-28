@@ -9,6 +9,7 @@ import NewsPanel from './NewsPanel';
 import RiskPanel from './RiskPanel';
 import JournalPanel from './JournalPanel';
 import RobotPanel from './RobotPanel';
+import ValidatePanel from './ValidatePanel';
 import type { IndicatorId } from '@/lib/indicators';
 
 /** Contexto repassado a cada ferramenta da barra lateral (a aba/ativo atual). */
@@ -67,6 +68,13 @@ export const TOOLS: Tool[] = [
     modal: true,
     icon: svg(<><rect x="4" y="8" width="16" height="11" rx="2" /><path d="M12 4v4M9 13h.01M15 13h.01M9 16h6M2 13h2M20 13h2" /></>),
     Panel: RobotPanel,
+  },
+  {
+    id: 'validacao',
+    title: 'Teste fora da amostra',
+    modal: true,
+    icon: svg(<><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3" /><path d="M7.5 15h9" /></>),
+    Panel: ValidatePanel,
   },
   {
     id: 'noticias',

@@ -33,3 +33,15 @@ git pull origin main          # sem isso o código local continua o antigo
 docker compose up -d --build  # reconstrói web, worker e quotes
 ```
 No navegador, faça um recarregamento forçado (Ctrl+Shift+R). Para conferir o que está rodando: `docker compose images` (data de criação) e `git log -1`.
+
+## Backup e restauração
+O serviço `backup` grava uma cópia do banco por dia em `./backups` (14 mais recentes; ajuste com `BACKUP_KEEP`).
+
+```bash
+docker compose exec backup bash /backup.sh now                  # cópia na hora
+deploy/restore.sh backups/prophet-AAAAMMDD-HHMMSS.dump          # SUBSTITUI o banco atual (pede confirmação)
+```
+
+- As cópias ficam **no mesmo disco** do banco. Copie a pasta `backups/` para outro lugar de tempos em tempos.
+- O `.env` não entra no backup. Guarde-o à parte: sem a `CREDENTIALS_KEY`, as chaves da Binance salvas no banco não podem ser lidas.
+- Restaure com a mesma versão do TimescaleDB que gerou a cópia.

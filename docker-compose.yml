@@ -47,6 +47,33 @@ services:
       db: { condition: service_healthy }
     environment: *common-env
 
+  # Vigia: avisa pelo Telegram quando o worker, os dados ou o backup param
+  watchdog:
+    build: ./web
+    pull_policy: build
+    command: ["npx", "tsx", "src/watchdog/index.ts"]
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment: *common-env
+
+  # Cópia diária do banco em ./backups (restaurar: deploy/restore.sh)
+  backup:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    entrypoint: ["bash", "/backup.sh"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: prophet
+      PGDATABASE: prophet
+      PGPASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ./deploy/backup.sh:/backup.sh:ro
+      - ./backups:/backups
+
   # Preço real via yfinance (Yahoo). Sem porta publicada: só o web acessa, pela rede do Compose.
   quotes:
     build: ./quotes

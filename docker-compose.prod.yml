@@ -8,6 +8,9 @@ services:
   worker:
     image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
     pull_policy: always
+  watchdog:
+    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
+    pull_policy: always
   quotes:
     image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-quotes:${IMAGE_TAG:-latest}
     pull_policy: always

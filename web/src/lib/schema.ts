@@ -67,6 +67,7 @@ async function run() {
         capital DOUBLE PRECISION NOT NULL, stop_pct DOUBLE PRECISION, gain_pct DOUBLE PRECISION, step DOUBLE PRECISION NOT NULL,
         status TEXT NOT NULL DEFAULT 'running', state JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(), stopped_at TIMESTAMPTZ);
+      CREATE TABLE IF NOT EXISTS heartbeats (name TEXT PRIMARY KEY, ok_at TIMESTAMPTZ, detail TEXT, alerted_at TIMESTAMPTZ);
       CREATE TABLE IF NOT EXISTS exchange_credentials (
         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         exchange TEXT NOT NULL, env TEXT NOT NULL,

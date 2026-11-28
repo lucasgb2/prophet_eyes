@@ -5,6 +5,7 @@ import SymbolInput from './SymbolInput';
 import MarketLogo from './MarketLogo';
 import Modal from './Modal';
 import HistoryBadge from './HistoryBadge';
+import HealthBanner from './HealthBanner';
 import { TOOLS } from './tools/registry';
 import IndicatorHelpModal from './IndicatorHelpModal';
 import RankingHelpModal from './RankingHelpModal';
@@ -194,6 +195,7 @@ export default function Dashboard() {
           <b>Prophet</b><span className="grow" />
           <button onClick={async () => { await j('/api/auth/logout', 'POST'); location.href = '/login'; }}>Sair</button>
         </div>
+        <HealthBanner />
         <div className="tabs">
           {profiles.map((p) => <button key={p.id} className={p.id === activeId ? 'on' : ''} onClick={() => setActiveId(p.id)}>{p.symbol}</button>)}
           <button aria-label="Nova aba" onClick={async () => { const p = await (await j('/api/profiles', 'POST', { market: profile?.market ?? 'b3' })).json(); setProfiles([...profiles, p]); setActiveId(p.id); }}>+</button>

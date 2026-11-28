@@ -104,3 +104,4 @@ button.newshelp { width:18px; height:18px; padding:0; border-radius:50%; font-si
 .legend li { line-height:1.35; } .lg-bell { filter:drop-shadow(0 0 3px #f0b429); }
 .lg-ind { color:var(--mut); } .lg-ind b { color:var(--fg); } .lg-note { color:var(--mut); font-size:11px; margin-top:2px; }
 .suglevels { margin-top:4px; padding-top:6px; border-top:1px dashed var(--line); display:flex; flex-direction:column; gap:2px; }
+.health { padding: 8px 12px; background: #3d2b00; color: #f2cc60; border-bottom: 1px solid #9e6a03; }

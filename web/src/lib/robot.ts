@@ -8,6 +8,8 @@ export type RobotConfig = {
   capital: number; stopPct: number | null; gainPct: number | null;
   /** Menor passo de quantidade (1 ação na B3, 0,00001 em cripto). */
   step: number;
+  /** Derrapagem por ponta, em %: compra um pouco acima e vende um pouco abaixo do preço de referência. */
+  slipPct?: number;
 };
 
 export type RobotTrade = {
@@ -68,26 +70,29 @@ function sell(s: RobotState, time: number, price: number, reason: string): Robot
 export function advance(prev: RobotState, candles: Candle[], closed: number, sig: number[], cfg: RobotConfig): { state: RobotState; events: RobotEvent[] } {
   const s: RobotState = { ...prev, curve: [...prev.curve] };
   const events: RobotEvent[] = [];
+  const slip = (cfg.slipPct ?? 0) / 100;
+  const out = (time: number, price: number, reason: string) => events.push({ type: 'sell', trade: sell(s, time, price * (1 - slip), reason) });
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i];
     if (c.time <= s.lastClosed) continue;
     s.firstPrice ??= c.open;
     s.lastPrice = c.close;
     if (s.pending === 'buy' && !s.position) {
-      const qty = Number((Math.floor(s.cash / (c.open * (1 + COST)) / cfg.step + 1e-9) * cfg.step).toFixed(8));
+      const price = c.open * (1 + slip);
+      const qty = Number((Math.floor(s.cash / (price * (1 + COST)) / cfg.step + 1e-9) * cfg.step).toFixed(8));
       if (qty > 0) {
-        s.position = { entryTime: c.time, entryPrice: c.open, qty };
-        s.cash -= qty * c.open;
-        events.push({ type: 'buy', price: c.open, qty });
+        s.position = { entryTime: c.time, entryPrice: price, qty };
+        s.cash -= qty * price;
+        events.push({ type: 'buy', price, qty });
       }
-    } else if (s.pending === 'sell' && s.position) events.push({ type: 'sell', trade: sell(s, c.time, c.open, 'sinal de venda') });
+    } else if (s.pending === 'sell' && s.position) out(c.time, c.open, 'sinal de venda');
     s.pending = null;
 
     if (s.position) {
       const stop = cfg.stopPct ? s.position.entryPrice * (1 - cfg.stopPct / 100) : null;
       const gain = cfg.gainPct ? s.position.entryPrice * (1 + cfg.gainPct / 100) : null;
-      if (stop != null && c.low <= stop) events.push({ type: 'sell', trade: sell(s, c.time, Math.min(c.open, stop), 'stop loss') });
-      else if (gain != null && c.high >= gain) events.push({ type: 'sell', trade: sell(s, c.time, Math.max(c.open, gain), 'stop gain') });
+      if (stop != null && c.low <= stop) out(c.time, Math.min(c.open, stop), 'stop loss');
+      else if (gain != null && c.high >= gain) out(c.time, Math.max(c.open, gain), 'stop gain');
     }
 
     if (i >= closed) break;
