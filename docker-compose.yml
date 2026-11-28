@@ -1,3 +1,14 @@
+x-common-env: &common-env
+      DATABASE_URL: postgres://prophet:${POSTGRES_PASSWORD}@db:5432/prophet
+      SESSION_SECRET: ${SESSION_SECRET:?defina no .env}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
+      BRAPI_RANGES: ${BRAPI_RANGES:-}
+      MARKET_HOLIDAYS: ${MARKET_HOLIDAYS:-}
+      HISTORY_YEARS: ${HISTORY_YEARS:-5}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      QUOTES_URL: http://quotes:8000
+
 services:
   db:
     image: timescale/timescaledb:latest-pg16
@@ -15,32 +26,58 @@ services:
       retries: 10
 
   web:
-    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
     build: ./web
+    pull_policy: build   # `docker compose up -d` sempre reconstrói a partir do código local
     restart: unless-stopped
     depends_on:
       db: { condition: service_healthy }
-    environment: &app-env
-      DATABASE_URL: postgres://prophet:${POSTGRES_PASSWORD}@db:5432/prophet
-      SESSION_SECRET: ${SESSION_SECRET:?defina no .env}
-      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
-      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      QUOTES_URL: http://quotes:8000
+    environment:
+      <<: *common-env
+      # Operações na Binance: só o web precisa destas (o worker não envia ordens nem lê chaves)
+      CREDENTIALS_KEY: ${CREDENTIALS_KEY:-}
+      BINANCE_ALLOW_PRODUCTION: ${BINANCE_ALLOW_PRODUCTION:-false}
+      TRADE_MAX_NOTIONAL_USDT: ${TRADE_MAX_NOTIONAL_USDT:-100}
 
   worker:
-    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-web:${IMAGE_TAG:-latest}
     build: ./web
+    pull_policy: build   # `docker compose up -d` sempre reconstrói a partir do código local
     command: ["npx", "tsx", "src/worker/index.ts"]
     restart: unless-stopped
     depends_on:
       db: { condition: service_healthy }
-    environment: *app-env
+    environment: *common-env
+
+  # Vigia: avisa pelo Telegram quando o worker, os dados ou o backup param
+  watchdog:
+    build: ./web
+    pull_policy: build
+    command: ["npx", "tsx", "src/watchdog/index.ts"]
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment: *common-env
+
+  # Cópia diária do banco em ./backups (restaurar: deploy/restore.sh)
+  backup:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    entrypoint: ["bash", "/backup.sh"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: prophet
+      PGDATABASE: prophet
+      PGPASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ./deploy/backup.sh:/backup.sh:ro
+      - ./backups:/backups
 
   # Preço real via yfinance (Yahoo). Sem porta publicada: só o web acessa, pela rede do Compose.
   quotes:
-    image: ghcr.io/${GHCR_OWNER:-lucasgb2}/prophet-quotes:${IMAGE_TAG:-latest}
     build: ./quotes
+    pull_policy: build   # `docker compose up -d` sempre reconstrói a partir do código local
     restart: unless-stopped
 
   caddy:

@@ -2,6 +2,7 @@ import type { Timeframe } from './types';
 
 // Janela inicial (primeira carga) e limite por timeframe, conforme o que a brapi aceita para cada intervalo.
 export const INITIAL_RANGE: Record<Timeframe, { interval: string; range: string; maxDays: number; minDays: number }> = {
+  '1m': { interval: '1m', range: '5d', maxDays: 5, minDays: 1 },
   '5m': { interval: '5m', range: '5d', maxDays: 5, minDays: 1 },
   '15m': { interval: '15m', range: '5d', maxDays: 5, minDays: 1 },
   '30m': { interval: '30m', range: '1mo', maxDays: 31, minDays: 1 },
@@ -20,4 +21,46 @@ export function pickRange(tf: Timeframe, lastCachedSec: number | null, nowSec = 
   const gapDays = Math.max((nowSec - lastCachedSec) / 86400 + 1, cfg.minDays);
   const hit = RANGES.find(([, d]) => d >= gapDays);
   return hit && hit[1] <= cfg.maxDays ? hit[0] : cfg.range;
+}
+
+// ---- Limites do plano da brapi ----
+/** Papéis de teste da brapi: funcionam em qualquer intervalo, mesmo sem plano pago. Os demais seguem o limite do plano. */
+export const FREE_TICKERS = ['PETR4', 'VALE3', 'MGLU3', 'ITUB4'];
+
+const ORDER = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'max'];
+
+/** Lê "Ranges permitidos: 1d, 5d, 1mo, 3mo." da mensagem de erro da brapi (ou de BRAPI_RANGES="1d,5d,1mo,3mo"). */
+export function parseAllowedRanges(text: string): string[] | null {
+  const m = /Ranges? permitidos?:\s*([^.\n]+)/i.exec(text) ?? /^([0-9a-z, ]+)$/i.exec(text.trim());
+  const list = (m?.[1] ?? '').split(',').map((x) => x.trim()).filter((x) => ORDER.includes(x));
+  return list.length ? list : null;
+}
+
+/** Lê "Intervalos permitidos: 1d." da mensagem de erro da brapi (ou de BRAPI_INTERVALS="1d"). Null se não reconhecer. */
+export function parseAllowedIntervals(text: string): string[] | null {
+  const m = /Intervalos? permitidos?:\s*([^.\n]+)/i.exec(text) ?? /^([0-9a-z, ]+)$/i.exec(text.trim());
+  const list = (m?.[1] ?? '').split(',').map((x) => x.trim()).filter((x) => x in INITIAL_RANGE);
+  return list.length ? list : null;
+}
+
+/** Maior range permitido que não passa do pedido; se o pedido for menor que todos, o menor permitido. */
+export function clampRange(range: string, allowed: string[] | null): string {
+  if (!allowed || allowed.includes(range)) return range;
+  const want = ORDER.indexOf(range);
+  const sorted = [...allowed].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+  const below = sorted.filter((r) => ORDER.indexOf(r) < want);
+  return below.length ? below[below.length - 1] : sorted[0];
+}
+
+// ---- Lacunas no histórico guardado ----
+const MAX_STEP_DAYS: Record<Timeframe, number> = { '1m': 6, '5m': 6, '15m': 6, '30m': 6, '60m': 6, '1d': 6, '1wk': 10, '1mo': 40 };
+
+/**
+ * Início (epoch s) da primeira lacuna do histórico: o candle logo antes de um buraco maior que o normal
+ * (fim de semana prolongado e feriados cabem na tolerância). Null se não houver lacuna.
+ */
+export function firstGapStart(times: number[], tf: Timeframe): number | null {
+  const lim = MAX_STEP_DAYS[tf] * 86400;
+  for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] > lim) return times[i - 1];
+  return null;
 }
